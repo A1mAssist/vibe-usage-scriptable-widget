@@ -56,10 +56,8 @@ const I18N = {
     topSources: "Top sources",
     lastDays: "Last {days} days",
     updated: "Updated {time}",
-    now: "now",
-    minutesAgo: "{n}m ago",
-    hoursAgo: "{n}h ago",
-    daysAgo: "{n}d ago",
+    yesterday: "Yesterday",
+    dayBeforeYesterday: "Day before yesterday",
     usingCachedData: "Using cached data",
     noData: "No data yet. Run vibe-usage sync on your Mac first.",
     apiKeyRequired: "API key required",
@@ -101,10 +99,8 @@ const I18N = {
     topSources: "主要来源",
     lastDays: "近 {days} 天",
     updated: "{time} 更新",
-    now: "刚刚",
-    minutesAgo: "{n} 分钟前",
-    hoursAgo: "{n} 小时前",
-    daysAgo: "{n} 天前",
+    yesterday: "昨天",
+    dayBeforeYesterday: "前天",
     usingCachedData: "正在使用缓存数据",
     noData: "暂无数据。先在 Mac 上运行 vibe-usage 同步。",
     apiKeyRequired: "需要 API Key",
@@ -521,13 +517,30 @@ function trim1(n) {
 }
 
 function agoText(ts) {
-  if (!ts) return t("now");
-  const minutes = Math.max(0, Math.floor((Date.now() - ts) / 60000));
-  if (minutes < 1) return t("now");
-  if (minutes < 60) return t("minutesAgo", { n: minutes });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return t("hoursAgo", { n: hours });
-  return t("daysAgo", { n: Math.floor(hours / 24) });
+  if (!ts) return formatClock(new Date());
+  const date = new Date(ts);
+  if (!Number.isFinite(date.getTime())) return formatClock(new Date());
+
+  const today = startOfLocalDay(new Date());
+  const day = startOfLocalDay(date);
+  const diffDays = Math.round((today.getTime() - day.getTime()) / 86400000);
+
+  if (diffDays <= 0) return formatClock(date);
+  if (diffDays === 1) return t("yesterday");
+  if (diffDays === 2) return t("dayBeforeYesterday");
+  return `${pad2(date.getMonth() + 1)}/${pad2(date.getDate())}`;
+}
+
+function startOfLocalDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function formatClock(date) {
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
 }
 
 function sourceLabel(source) {
