@@ -1,6 +1,6 @@
 # Vibe Usage iPhone 桌面小组件
 
-基于 `wgjuan2314/shuangzi-xubei` 的 Scriptable 小组件思路，改成显示你的 Vibe Usage 数据。它运行在 iPhone 桌面/负一屏，不解析 Mac 本地日志，也不上传数据，只用 `vbu_...` API Key 读取 `https://vibecafe.ai/api/usage?days=7`。
+一个用于在 iPhone 桌面/负一屏显示 Vibe Usage 数据的 Scriptable 小组件。它不解析本地日志，也不上传数据，只用 `vbu_...` API Key 读取 `https://vibecafe.ai/api/usage?days=7`。
 
 ## 文件
 
@@ -9,9 +9,9 @@
 
 ![Widget size previews](widget-size-previews.png)
 
-## 先在 Mac 上同步数据
+## 先在电脑上同步数据
 
-Vibe Usage 的数据来自电脑本地日志，所以需要先在 Mac 上完成官方同步：
+Vibe Usage 的数据来自电脑本地日志，所以需要先在 macOS、Windows 或 Linux 上完成官方同步：
 
 ```bash
 npx @vibe-cafe/vibe-usage
@@ -33,7 +33,7 @@ npx @vibe-cafe/vibe-usage sync
 
 打开 [Vibe Usage 设置页](https://vibecafe.ai/usage/setup)，生成或复制 `vbu_` 开头的 API Key。
 
-也可以从 Mac 的配置文件里取：
+也可以从电脑上的 Vibe Usage 配置文件里取：
 
 ```bash
 cat ~/.vibe-usage/config.json
@@ -77,4 +77,4 @@ cat ~/.vibe-usage/config.json
 
 - API Key 只存在 iPhone 的 Scriptable Keychain。
 - 小组件只发起只读请求：`GET /api/usage?days=7`。
-- 真正的数据上传仍由官方 `@vibe-cafe/vibe-usage` CLI 或 Vibe Usage Mac app 完成。
+- 真正的数据上传仍由官方 `@vibe-cafe/vibe-usage` CLI 或 Vibe Usage 桌面 app 完成。

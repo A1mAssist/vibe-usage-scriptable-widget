@@ -1,6 +1,6 @@
 // Vibe Usage iPhone widget for Scriptable.
 // Shows token/cost stats from vibecafe.ai using the same vbu_ API key as
-// `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage Mac app.
+// `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
   apiUrl: "https://vibecafe.ai",
@@ -59,7 +59,7 @@ const I18N = {
     yesterday: "Yesterday",
     dayBeforeYesterday: "Day before yesterday",
     usingCachedData: "Using cached data",
-    noData: "No data yet. Run vibe-usage sync on your Mac first.",
+    noData: "No data yet. Run vibe-usage sync on your computer first.",
     apiKeyRequired: "API key required",
     setupHint: "Copy your vbu_ key, then run this script once in Scriptable.",
     configuredTitle: "Vibe Usage configured",
@@ -102,7 +102,7 @@ const I18N = {
     yesterday: "昨天",
     dayBeforeYesterday: "前天",
     usingCachedData: "正在使用缓存数据",
-    noData: "暂无数据。先在 Mac 上运行 vibe-usage 同步。",
+    noData: "暂无数据。先在电脑上运行 vibe-usage 同步。",
     apiKeyRequired: "需要 API Key",
     setupHint: "复制 vbu_ 开头的 Key，然后在 Scriptable 里运行一次脚本。",
     configuredTitle: "Vibe Usage 已配置",
