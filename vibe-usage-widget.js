@@ -35,6 +35,7 @@ const SOURCE_LABELS = {
 
 let COLORS = buildColors("auto");
 let ACTIVE_LANGUAGE = "en";
+let ACTIVE_THEME = "auto";
 
 const LAYOUT = {
   mediumContentWidth: 291,
@@ -185,6 +186,7 @@ function resolveLanguage(mode) {
 function applyRuntimeSettings(config) {
   const c = normalizeConfig(config);
   ACTIVE_LANGUAGE = resolveLanguage(c.language);
+  ACTIVE_THEME = c.theme;
   COLORS = buildColors(c.theme);
   return c;
 }
@@ -799,10 +801,14 @@ function addSourceRow(parent, label, item, maxTokens, color) {
 
 function buildWidget(payload) {
   const widget = new ListWidget();
-  const gradient = new LinearGradient();
-  gradient.locations = [0, 1];
-  gradient.colors = [COLORS.bgTop, COLORS.bgBottom];
-  widget.backgroundGradient = gradient;
+  if (ACTIVE_THEME === "auto") {
+    widget.backgroundColor = COLORS.bgTop;
+  } else {
+    const gradient = new LinearGradient();
+    gradient.locations = [0, 1];
+    gradient.colors = [COLORS.bgTop, COLORS.bgBottom];
+    widget.backgroundGradient = gradient;
+  }
   widget.url = settingsUrl();
 
   const family = config.widgetFamily || "medium";
