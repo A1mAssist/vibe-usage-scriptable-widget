@@ -5,9 +5,15 @@
 ## 文件
 
 - `vibe-usage-widget.js`: 复制到 Scriptable 的小组件脚本
-- `widget-size-previews.png`: 小号、中号、大号预览
+- `docs/`: iPhone 实机截图展示
 
-![Widget size previews](widget-size-previews.png)
+## 展示
+
+![Medium widget in light mode](docs/showcase-medium-light.png)
+
+![Medium widget in dark mode](docs/showcase-medium-dark.png)
+
+![Small and large widgets in dark mode](docs/showcase-all-sizes-dark.png)
 
 ## 先在电脑上同步数据
 
