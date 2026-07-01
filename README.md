@@ -53,7 +53,8 @@ cat ~/.vibe-usage/config.json
 2. 在 Scriptable 新建脚本，把 `vibe-usage-widget.js` 全部内容粘进去。
 3. 把 `vbu_...` API Key 复制到 iPhone 剪贴板。
 4. 在 Scriptable 里手动运行一次脚本，它会把 Key 写入 iPhone Keychain。
-5. 长按桌面添加 Scriptable 中号小组件，选择这个脚本。
+5. 首次配置完成后，按提示选择脚本更新方式：自动更新或手动检查。
+6. 长按桌面添加 Scriptable 中号小组件，选择这个脚本。
 
 可选：如果剪贴板不方便，把下面内容保存为 `vibeusage-widget.json`，放到 Scriptable 的 iCloud 文件夹，再运行一次脚本：
 
@@ -80,6 +81,15 @@ cat ~/.vibe-usage/config.json
 中号和大号小组件右上角有刷新图标；点它会通过 Scriptable URL scheme 打开并运行当前脚本，完成一次手动拉取并更新缓存。点击小组件主体会打开脚本设置。小号组件受 iOS/Scriptable 点击区域限制，可能只能保留一个点击目标。
 
 设置页支持更换 API Key、切换语言/外观、调整统计天数，并可选择大号小组件底部列表按 Agent 客户端或模型排序展示。
+
+## 脚本更新
+
+首次配置时可以选择：
+
+- 自动更新：脚本运行时最多每天检查一次 GitHub Release，发现新版会先备份当前脚本，再覆盖安装新版脚本。更新会在下一次运行或小组件刷新时生效。
+- 手动检查：不自动拉取新版，只在设置页点击“检查更新”时检查并确认安装。
+
+自动更新只会更新 Scriptable 脚本文件本身，不会修改 API Key；API Key 仍只保存在 iPhone 的 Scriptable Keychain。
 
 ## 安全边界
 

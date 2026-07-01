@@ -30,12 +30,17 @@ globalThis.__widgetTestExports = {
   cacheMatches,
   cacheRequest,
   clampDays,
+  compareVersions,
   formatDurationShort,
   formatTokens,
+  isVersionNewer,
   normalizeApiKey,
   normalizeApiUrl,
+  normalizeVersion,
   parseConfigInput,
+  shouldCheckUpdate,
   summarize,
+  validateScriptUpdate,
 };
 `),
   sandbox,
@@ -66,6 +71,8 @@ assert.deepEqual(plain(widget.parseConfigInput(JSON.stringify({
   language: "zh",
   theme: "dark",
   topList: "model",
+  updateMode: "auto",
+  oobeComplete: true,
 }))), {
   apiKey: "vbu_json-1",
   apiUrl: "https://example.com",
@@ -73,6 +80,8 @@ assert.deepEqual(plain(widget.parseConfigInput(JSON.stringify({
   language: "zh",
   theme: "dark",
   topList: "model",
+  updateMode: "auto",
+  oobeComplete: true,
 });
 
 assert.equal(widget.formatTokens(1200), "1.2K");
@@ -141,5 +150,16 @@ const cached = {
 assert.equal(widget.cacheMatches(cached, { ...request, apiUrl: "https://vibecafe.ai" }), true);
 assert.equal(widget.cacheMatches(cached, { ...request, days: 30 }), false);
 assert.equal(widget.cacheMatches(cached, { ...request, apiKey: "vbu_two" }), false);
+
+assert.equal(widget.normalizeVersion("v1.2.3+build"), "1.2.3");
+assert.equal(widget.compareVersions("1.2.4", "1.2.3"), 1);
+assert.equal(widget.compareVersions("1.2.3", "1.2.3"), 0);
+assert.equal(widget.compareVersions("1.2.3", "1.3.0"), -1);
+assert.equal(widget.isVersionNewer("0.0.5", "0.0.4"), true);
+assert.equal(widget.isVersionNewer("0.0.4", "0.0.4"), false);
+assert.equal(widget.shouldCheckUpdate(Date.now()), false);
+assert.equal(widget.shouldCheckUpdate(Date.now() - 25 * 3600 * 1000), true);
+assert.equal(widget.validateScriptUpdate(source), true);
+assert.equal(widget.validateScriptUpdate("alert('nope')"), false);
 
 console.log("widget logic smoke tests passed");

@@ -3,17 +3,23 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
+  version: "0.0.4",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
   keychainKey: "vibeusage.widget.config",
   cacheFile: "vibeusage-widget-cache.json",
+  releaseApiUrl: "https://api.github.com/repos/A1mAssist/vibe-usage-scriptable-widget/releases/latest",
+  releaseAssetName: "vibe-usage-widget.js",
+  updateCheckHours: 24,
 };
 
 const DEFAULT_SETTINGS = {
   language: "auto",
   theme: "auto",
   topList: "source",
+  updateMode: null,
+  oobeComplete: false,
 };
 
 const SOURCE_LABELS = {
@@ -74,12 +80,19 @@ const I18N = {
     fetchFailed: "Fetch failed",
     settingsTitle: "Token Usage Settings",
     settingsMessage: "These choices are saved in Scriptable Keychain.",
+    welcomeTitle: "Welcome to Token Usage",
+    welcomeMessage: "Choose how this script updates itself. Auto-update checks GitHub releases at most once per day, backs up the current script, then installs verified updates.",
     refreshCompleteTitle: "Refresh complete",
     refreshCompleteMessage: "Latest usage has been fetched and cached.",
     preview: "Preview",
+    currentVersion: "Version",
     language: "Language",
     appearance: "Appearance",
     changeKey: "Change API key",
+    checkUpdates: "Check for updates",
+    updateMode: "Script updates",
+    autoUpdate: "Auto-update",
+    manualUpdate: "Manual checks",
     days: "Days",
     topList: "Large list",
     system: "System",
@@ -97,6 +110,20 @@ const I18N = {
     keyUpdatedTitle: "API key updated",
     keyUpdatedMessage: "The new API key has been saved. Refresh the widget to fetch latest usage.",
     invalidKeyInput: "Please enter a valid vbu_ API key.",
+    checkingUpdates: "Checking for updates...",
+    updateAvailableTitle: "Update available",
+    updateAvailableMessage: "Version {version} is available. Current version: {current}.",
+    installUpdate: "Install update",
+    later: "Later",
+    updateInstalledTitle: "Update installed",
+    updateInstalledMessage: "Updated to {version}. The next run will use the new script. Backup: {backup}",
+    upToDateTitle: "Already up to date",
+    upToDateMessage: "You are running the latest version: {version}.",
+    updateFailedTitle: "Update failed",
+    updateFailedMessage: "{message}",
+    updateAssetMissing: "Release asset is missing.",
+    updateValidationFailed: "Downloaded script did not pass validation.",
+    scriptFileNotFound: "Current script file was not found.",
   },
   zh: {
     title: "Token 用量",
@@ -128,12 +155,19 @@ const I18N = {
     fetchFailed: "拉取失败",
     settingsTitle: "Token 用量设置",
     settingsMessage: "设置会保存到 Scriptable Keychain。",
+    welcomeTitle: "欢迎使用 Token 用量",
+    welcomeMessage: "请选择脚本更新方式。自动更新最多每天检查一次 GitHub Release，会先备份当前脚本，再安装通过校验的新版本。",
     refreshCompleteTitle: "刷新完成",
     refreshCompleteMessage: "最新用量已拉取并缓存。",
     preview: "预览",
+    currentVersion: "版本",
     language: "语言",
     appearance: "外观",
     changeKey: "更换 API Key",
+    checkUpdates: "检查更新",
+    updateMode: "脚本更新",
+    autoUpdate: "自动更新",
+    manualUpdate: "手动检查",
     days: "天数",
     topList: "大号列表",
     system: "跟随系统",
@@ -151,6 +185,20 @@ const I18N = {
     keyUpdatedTitle: "API Key 已更新",
     keyUpdatedMessage: "新的 API Key 已保存。刷新小组件即可拉取最新用量。",
     invalidKeyInput: "请输入有效的 vbu_ API Key。",
+    checkingUpdates: "正在检查更新...",
+    updateAvailableTitle: "发现新版本",
+    updateAvailableMessage: "版本 {version} 可用。当前版本：{current}。",
+    installUpdate: "安装更新",
+    later: "稍后",
+    updateInstalledTitle: "更新已安装",
+    updateInstalledMessage: "已更新到 {version}。下次运行会使用新脚本。备份：{backup}",
+    upToDateTitle: "已是最新版本",
+    upToDateMessage: "当前已是最新版本：{version}。",
+    updateFailedTitle: "更新失败",
+    updateFailedMessage: "{message}",
+    updateAssetMissing: "Release 资源文件不存在。",
+    updateValidationFailed: "下载的脚本未通过校验。",
+    scriptFileNotFound: "找不到当前脚本文件。",
   },
 };
 
@@ -189,6 +237,8 @@ function normalizeConfig(config) {
   const language = ["auto", "en", "zh"].includes(c.language) ? c.language : DEFAULT_SETTINGS.language;
   const theme = ["auto", "light", "dark"].includes(c.theme) ? c.theme : DEFAULT_SETTINGS.theme;
   const topList = ["source", "model"].includes(c.topList) ? c.topList : DEFAULT_SETTINGS.topList;
+  const updateMode = isUpdateMode(c.updateMode) ? c.updateMode : DEFAULT_SETTINGS.updateMode;
+  const lastUpdateCheckAt = Number.isFinite(Number(c.lastUpdateCheckAt)) ? Number(c.lastUpdateCheckAt) : 0;
   return {
     ...c,
     apiUrl: normalizeApiUrl(c.apiUrl),
@@ -196,6 +246,9 @@ function normalizeConfig(config) {
     language,
     theme,
     topList,
+    updateMode,
+    oobeComplete: Boolean(c.oobeComplete),
+    lastUpdateCheckAt,
   };
 }
 
@@ -237,6 +290,15 @@ function themeName(value) {
 function topListName(value) {
   if (value === "model") return t("models");
   return t("agentClients");
+}
+
+function updateModeName(value) {
+  if (value === "auto") return t("autoUpdate");
+  return t("manualUpdate");
+}
+
+function isUpdateMode(value) {
+  return value === "auto" || value === "manual";
 }
 
 function cacheRequest(config) {
@@ -379,6 +441,8 @@ function parseConfigInput(raw) {
         language: parsed.language || DEFAULT_SETTINGS.language,
         theme: parsed.theme || DEFAULT_SETTINGS.theme,
         topList: parsed.topList || DEFAULT_SETTINGS.topList,
+        updateMode: isUpdateMode(parsed.updateMode) ? parsed.updateMode : DEFAULT_SETTINGS.updateMode,
+        oobeComplete: Boolean(parsed.oobeComplete),
       };
     }
   } catch {}
@@ -418,6 +482,187 @@ async function fetchUsage(widgetConfig) {
   } catch {
     throw new Error(t("fetchFailed"));
   }
+}
+
+async function fetchJson(url, headers = {}) {
+  const body = await fetchText(url, headers);
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error(t("fetchFailed"));
+  }
+}
+
+async function fetchText(url, headers = {}) {
+  const req = new Request(url);
+  req.timeoutInterval = 20;
+  req.headers = headers;
+  const body = await req.loadString();
+  const status = req.response ? req.response.statusCode : 200;
+  if (status < 200 || status >= 300) throw new Error(`HTTP ${status}`);
+  return body;
+}
+
+async function fetchLatestRelease() {
+  return fetchJson(CONFIG.releaseApiUrl, {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "vibe-usage-scriptable-widget",
+  });
+}
+
+function releaseAssetUrl(release) {
+  const assets = Array.isArray(release?.assets) ? release.assets : [];
+  const asset = assets.find(item => item?.name === CONFIG.releaseAssetName);
+  return asset?.browser_download_url || null;
+}
+
+function latestReleaseVersion(release) {
+  return normalizeVersion(release?.tag_name || release?.tagName || release?.name || "");
+}
+
+function normalizeVersion(value) {
+  return String(value || "").trim().replace(/^v/i, "").split(/[+-]/)[0];
+}
+
+function compareVersions(a, b) {
+  const left = normalizeVersion(a).split(".").map(n => Number(n));
+  const right = normalizeVersion(b).split(".").map(n => Number(n));
+  const length = Math.max(left.length, right.length, 3);
+  for (let i = 0; i < length; i++) {
+    const av = Number.isFinite(left[i]) ? left[i] : 0;
+    const bv = Number.isFinite(right[i]) ? right[i] : 0;
+    if (av > bv) return 1;
+    if (av < bv) return -1;
+  }
+  return 0;
+}
+
+function isVersionNewer(version, current = CONFIG.version) {
+  return compareVersions(version, current) > 0;
+}
+
+function shouldCheckUpdate(lastUpdateCheckAt, now = Date.now()) {
+  const last = Number(lastUpdateCheckAt) || 0;
+  return now - last >= CONFIG.updateCheckHours * 3600 * 1000;
+}
+
+function validateScriptUpdate(source) {
+  return typeof source === "string"
+    && source.length > 20000
+    && source.includes("Vibe Usage iPhone widget for Scriptable")
+    && source.includes('keychainKey: "vibeusage.widget.config"')
+    && source.includes(`releaseAssetName: "${CONFIG.releaseAssetName}"`)
+    && source.includes("await main();");
+}
+
+function currentScriptFile() {
+  const filename = `${Script.name()}.js`;
+  const managers = [];
+  try {
+    managers.push(FileManager.iCloud());
+  } catch {}
+  try {
+    managers.push(FileManager.local());
+  } catch {}
+
+  for (const fm of managers) {
+    const path = fm.joinPath(fm.documentsDirectory(), filename);
+    if (fm.fileExists(path)) return { fm, path };
+  }
+
+  return null;
+}
+
+function backupPathFor(path) {
+  const stamp = updateTimestamp();
+  return path.replace(/\.js$/i, `.backup-v${CONFIG.version}-${stamp}.js`);
+}
+
+function updateTimestamp() {
+  const d = new Date();
+  return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}`;
+}
+
+async function installScriptUpdate(downloadUrl) {
+  const source = await fetchText(downloadUrl, {
+    "User-Agent": "vibe-usage-scriptable-widget",
+  });
+  if (!validateScriptUpdate(source)) throw new Error(t("updateValidationFailed"));
+
+  const current = currentScriptFile();
+  if (!current) throw new Error(t("scriptFileNotFound"));
+
+  const { fm, path } = current;
+  try {
+    if (fm.isFileDownloaded && !fm.isFileDownloaded(path)) await fm.downloadFileFromiCloud(path);
+  } catch {}
+
+  const existing = fm.readString(path);
+  const backup = backupPathFor(path);
+  fm.writeString(backup, existing);
+  fm.writeString(path, source);
+  return backup.split(/[\\/]/).pop();
+}
+
+async function checkForScriptUpdate(configValue, options = {}) {
+  const manual = Boolean(options.manual);
+  let cfg = applyRuntimeSettings(configValue);
+
+  try {
+    const release = await fetchLatestRelease();
+    const version = latestReleaseVersion(release);
+    cfg = applyRuntimeSettings({ ...cfg, lastUpdateCheckAt: Date.now() });
+    saveConfig(cfg);
+
+    if (!version || !isVersionNewer(version)) {
+      if (manual) await presentUpdateAlert(t("upToDateTitle"), t("upToDateMessage", { version: CONFIG.version }));
+      return cfg;
+    }
+
+    const downloadUrl = releaseAssetUrl(release);
+    if (!downloadUrl) throw new Error(t("updateAssetMissing"));
+
+    if (manual) {
+      const shouldInstall = await confirmUpdate(version);
+      if (!shouldInstall) return cfg;
+    }
+
+    const backup = await installScriptUpdate(downloadUrl);
+    if (manual) await presentUpdateAlert(t("updateInstalledTitle"), t("updateInstalledMessage", { version, backup }));
+    return cfg;
+  } catch (err) {
+    cfg = applyRuntimeSettings({ ...cfg, lastUpdateCheckAt: Date.now() });
+    saveConfig(cfg);
+    if (manual) {
+      await presentUpdateAlert(t("updateFailedTitle"), t("updateFailedMessage", { message: err.message || t("fetchFailed") }));
+    }
+    return cfg;
+  }
+}
+
+async function maybeAutoUpdate(configValue) {
+  const cfg = applyRuntimeSettings(configValue);
+  if (cfg.updateMode !== "auto") return cfg;
+  if (!shouldCheckUpdate(cfg.lastUpdateCheckAt)) return cfg;
+  return checkForScriptUpdate(cfg, { manual: false });
+}
+
+async function confirmUpdate(version) {
+  const a = new Alert();
+  a.title = t("updateAvailableTitle");
+  a.message = t("updateAvailableMessage", { version, current: CONFIG.version });
+  a.addAction(t("installUpdate"));
+  a.addCancelAction(t("later"));
+  const choice = await a.presentAlert();
+  return choice === 0;
+}
+
+async function presentUpdateAlert(title, message) {
+  const a = new Alert();
+  a.title = title;
+  a.message = message;
+  a.addAction(t("ok"));
+  await a.presentAlert();
 }
 
 function summarize(data, days = CONFIG.days) {
@@ -1231,6 +1476,19 @@ async function chooseTopList(current) {
   return current;
 }
 
+async function chooseUpdateMode(current) {
+  const a = new Alert();
+  a.title = t("updateMode");
+  a.message = t("welcomeMessage");
+  a.addAction(t("autoUpdate"));
+  a.addAction(t("manualUpdate"));
+  a.addCancelAction(t("cancel"));
+  const choice = await a.presentSheet();
+  if (choice === 0) return "auto";
+  if (choice === 1) return "manual";
+  return isUpdateMode(current) ? current : "manual";
+}
+
 async function chooseDays(current) {
   const a = new Alert();
   a.title = t("days");
@@ -1276,6 +1534,24 @@ async function changeApiKey(current) {
   return next;
 }
 
+async function completeOobeIfNeeded(widgetConfig) {
+  if (config.runsInWidget || isRefreshRun() || !widgetConfig?.apiKey) return widgetConfig;
+
+  const cfg = applyRuntimeSettings(widgetConfig);
+  if (cfg.oobeComplete && isUpdateMode(cfg.updateMode)) return cfg;
+
+  const a = new Alert();
+  a.title = t("welcomeTitle");
+  a.message = t("welcomeMessage");
+  a.addAction(t("autoUpdate"));
+  a.addAction(t("manualUpdate"));
+  const choice = await a.presentSheet();
+  const updateMode = choice === 0 ? "auto" : "manual";
+  const next = applyRuntimeSettings({ ...cfg, updateMode, oobeComplete: true });
+  saveConfig(next);
+  return next;
+}
+
 async function presentSettingsIfNeeded(widgetConfig) {
   if (config.runsInWidget || isRefreshRun() || !widgetConfig?.apiKey) return widgetConfig;
 
@@ -1283,9 +1559,11 @@ async function presentSettingsIfNeeded(widgetConfig) {
   while (true) {
     const a = new Alert();
     a.title = t("settingsTitle");
-    a.message = `${t("language")}: ${languageName(cfg.language)}\n${t("appearance")}: ${themeName(cfg.theme)}\n${t("topList")}: ${topListName(cfg.topList)}\n${t("days")}: ${cfg.days}\n\n${t("settingsMessage")}`;
+    a.message = `${t("currentVersion")}: ${CONFIG.version}\n${t("updateMode")}: ${updateModeName(cfg.updateMode)}\n${t("language")}: ${languageName(cfg.language)}\n${t("appearance")}: ${themeName(cfg.theme)}\n${t("topList")}: ${topListName(cfg.topList)}\n${t("days")}: ${cfg.days}\n\n${t("settingsMessage")}`;
     a.addAction(t("preview"));
     a.addAction(t("changeKey"));
+    a.addAction(t("checkUpdates"));
+    a.addAction(t("updateMode"));
     a.addAction(t("language"));
     a.addAction(t("appearance"));
     a.addAction(t("topList"));
@@ -1298,21 +1576,30 @@ async function presentSettingsIfNeeded(widgetConfig) {
       continue;
     }
     if (choice === 2) {
-      cfg = applyRuntimeSettings({ ...cfg, language: await chooseLanguage(cfg.language) });
-      saveConfig(cfg);
+      cfg = await checkForScriptUpdate(cfg, { manual: true });
       continue;
     }
     if (choice === 3) {
-      cfg = applyRuntimeSettings({ ...cfg, theme: await chooseTheme(cfg.theme) });
+      cfg = applyRuntimeSettings({ ...cfg, updateMode: await chooseUpdateMode(cfg.updateMode), oobeComplete: true });
       saveConfig(cfg);
       continue;
     }
     if (choice === 4) {
-      cfg = applyRuntimeSettings({ ...cfg, topList: await chooseTopList(cfg.topList) });
+      cfg = applyRuntimeSettings({ ...cfg, language: await chooseLanguage(cfg.language) });
       saveConfig(cfg);
       continue;
     }
     if (choice === 5) {
+      cfg = applyRuntimeSettings({ ...cfg, theme: await chooseTheme(cfg.theme) });
+      saveConfig(cfg);
+      continue;
+    }
+    if (choice === 6) {
+      cfg = applyRuntimeSettings({ ...cfg, topList: await chooseTopList(cfg.topList) });
+      saveConfig(cfg);
+      continue;
+    }
+    if (choice === 7) {
       cfg = applyRuntimeSettings({ ...cfg, days: await chooseDays(cfg.days) });
       saveConfig(cfg);
       continue;
@@ -1324,6 +1611,8 @@ async function presentSettingsIfNeeded(widgetConfig) {
 
 async function main() {
   let widgetConfig = await bootstrapIfNeeded();
+  widgetConfig = widgetConfig ? await completeOobeIfNeeded(widgetConfig) : widgetConfig;
+  widgetConfig = widgetConfig ? await maybeAutoUpdate(widgetConfig) : widgetConfig;
   widgetConfig = widgetConfig ? await presentSettingsIfNeeded(widgetConfig) : widgetConfig;
   if (widgetConfig) widgetConfig = applyRuntimeSettings(widgetConfig);
   let payload = {
