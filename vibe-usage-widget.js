@@ -13,6 +13,7 @@ const CONFIG = {
 const DEFAULT_SETTINGS = {
   language: "auto",
   theme: "auto",
+  topList: "source",
 };
 
 const SOURCE_LABELS = {
@@ -55,6 +56,7 @@ const I18N = {
     think: "Reasoning",
     tokenMix: "Token mix",
     topSources: "Top sources",
+    topModels: "Top models",
     lastDays: "Last {days} days",
     updated: "Updated {time}",
     yesterday: "Yesterday",
@@ -77,14 +79,24 @@ const I18N = {
     preview: "Preview",
     language: "Language",
     appearance: "Appearance",
+    changeKey: "Change API key",
     days: "Days",
+    topList: "Large list",
     system: "System",
     english: "English",
     chinese: "Chinese",
+    agentClients: "Agent clients",
+    models: "Models",
     light: "Light",
     dark: "Dark",
     save: "Save",
     cancel: "Cancel",
+    keyPromptTitle: "Change API key",
+    keyPromptMessage: "Enter a new vbu_ API key. The key is stored only in Scriptable Keychain.",
+    newApiKey: "vbu_...",
+    keyUpdatedTitle: "API key updated",
+    keyUpdatedMessage: "The new API key has been saved. Refresh the widget to fetch latest usage.",
+    invalidKeyInput: "Please enter a valid vbu_ API key.",
   },
   zh: {
     title: "Token 用量",
@@ -98,6 +110,7 @@ const I18N = {
     think: "推理",
     tokenMix: "Token 组成",
     topSources: "主要来源",
+    topModels: "主要模型",
     lastDays: "近 {days} 天",
     updated: "{time} 更新",
     yesterday: "昨天",
@@ -120,14 +133,24 @@ const I18N = {
     preview: "预览",
     language: "语言",
     appearance: "外观",
+    changeKey: "更换 API Key",
     days: "天数",
+    topList: "大号列表",
     system: "跟随系统",
     english: "English",
     chinese: "中文",
+    agentClients: "Agent 客户端",
+    models: "模型",
     light: "浅色",
     dark: "深色",
     save: "保存",
     cancel: "取消",
+    keyPromptTitle: "更换 API Key",
+    keyPromptMessage: "输入新的 vbu_ API Key。Key 只会保存到 Scriptable Keychain。",
+    newApiKey: "vbu_...",
+    keyUpdatedTitle: "API Key 已更新",
+    keyUpdatedMessage: "新的 API Key 已保存。刷新小组件即可拉取最新用量。",
+    invalidKeyInput: "请输入有效的 vbu_ API Key。",
   },
 };
 
@@ -165,12 +188,14 @@ function normalizeConfig(config) {
   const c = config || {};
   const language = ["auto", "en", "zh"].includes(c.language) ? c.language : DEFAULT_SETTINGS.language;
   const theme = ["auto", "light", "dark"].includes(c.theme) ? c.theme : DEFAULT_SETTINGS.theme;
+  const topList = ["source", "model"].includes(c.topList) ? c.topList : DEFAULT_SETTINGS.topList;
   return {
     ...c,
-    apiUrl: c.apiUrl || CONFIG.apiUrl,
+    apiUrl: normalizeApiUrl(c.apiUrl),
     days: clampDays(c.days || CONFIG.days),
     language,
     theme,
+    topList,
   };
 }
 
@@ -209,6 +234,39 @@ function themeName(value) {
   return t("system");
 }
 
+function topListName(value) {
+  if (value === "model") return t("models");
+  return t("agentClients");
+}
+
+function cacheRequest(config) {
+  return {
+    apiUrl: normalizeApiUrl(config?.apiUrl),
+    days: clampDays(config?.days || CONFIG.days),
+    apiKeyHash: hashString(config?.apiKey || ""),
+  };
+}
+
+function cacheMatches(cached, widgetConfig) {
+  const current = cacheRequest(widgetConfig);
+  const request = cached?.request;
+  if (request) {
+    return request.apiUrl === current.apiUrl
+      && request.days === current.days
+      && request.apiKeyHash === current.apiKeyHash;
+  }
+  return cached?.payload?.apiUrl === current.apiUrl && cached?.payload?.days === current.days;
+}
+
+function hashString(value) {
+  let hash = 5381;
+  const text = String(value || "");
+  for (let i = 0; i < text.length; i++) {
+    hash = ((hash << 5) + hash) ^ text.charCodeAt(i);
+  }
+  return String(hash >>> 0);
+}
+
 function getConfig() {
   if (!Keychain.contains(CONFIG.keychainKey)) return null;
   try {
@@ -230,6 +288,14 @@ function cachePath() {
 function saveCache(payload) {
   try {
     FileManager.local().writeString(cachePath(), JSON.stringify(payload));
+  } catch {}
+}
+
+function clearCache() {
+  try {
+    const fm = FileManager.local();
+    const path = cachePath();
+    if (fm.fileExists(path)) fm.remove(path);
   } catch {}
 }
 
@@ -296,26 +362,39 @@ async function bootstrapIfNeeded() {
 function parseConfigInput(raw) {
   if (!raw || typeof raw !== "string") return null;
   const trimmed = raw.trim();
+  const directKey = normalizeApiKey(trimmed);
 
-  if (/^vbu_[A-Za-z0-9_-]+$/.test(trimmed)) {
-    return { apiKey: trimmed, apiUrl: CONFIG.apiUrl, days: CONFIG.days };
+  if (directKey) {
+    return { apiKey: directKey, apiUrl: CONFIG.apiUrl, days: CONFIG.days };
   }
 
   try {
     const parsed = JSON.parse(trimmed);
-    const apiKey = parsed.apiKey || parsed.key || parsed.vibeUsageApiKey;
-    if (typeof apiKey === "string" && apiKey.startsWith("vbu_")) {
+    const apiKey = normalizeApiKey(parsed.apiKey || parsed.key || parsed.vibeUsageApiKey);
+    if (apiKey) {
       return {
         apiKey,
-        apiUrl: parsed.apiUrl || CONFIG.apiUrl,
+        apiUrl: normalizeApiUrl(parsed.apiUrl),
         days: clampDays(parsed.days || CONFIG.days),
         language: parsed.language || DEFAULT_SETTINGS.language,
         theme: parsed.theme || DEFAULT_SETTINGS.theme,
+        topList: parsed.topList || DEFAULT_SETTINGS.topList,
       };
     }
   } catch {}
 
   return null;
+}
+
+function normalizeApiKey(value) {
+  const key = typeof value === "string" ? value.trim() : "";
+  return /^vbu_[A-Za-z0-9_-]+$/.test(key) ? key : null;
+}
+
+function normalizeApiUrl(value) {
+  const raw = typeof value === "string" && value.trim() ? value.trim() : CONFIG.apiUrl;
+  if (!/^https?:\/\/[^/\s?#]+(?:[/?#][^\s]*)?$/i.test(raw)) return CONFIG.apiUrl;
+  return raw.replace(/\/+$/, "");
 }
 
 function clampDays(value) {
@@ -325,16 +404,20 @@ function clampDays(value) {
 }
 
 async function fetchUsage(widgetConfig) {
-  const apiUrl = (widgetConfig.apiUrl || CONFIG.apiUrl).replace(/\/+$/, "");
+  const apiUrl = normalizeApiUrl(widgetConfig.apiUrl);
   const days = clampDays(widgetConfig.days || CONFIG.days);
   const req = new Request(`${apiUrl}/api/usage?days=${days}`);
   req.timeoutInterval = 15;
   req.headers = { Authorization: `Bearer ${widgetConfig.apiKey}` };
-  const data = await req.loadJSON();
+  const body = await req.loadString();
   const status = req.response ? req.response.statusCode : 200;
   if (status === 401) throw new Error(t("invalidKey"));
   if (status < 200 || status >= 300) throw new Error(`HTTP ${status}`);
-  return data;
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error(t("fetchFailed"));
+  }
 }
 
 function summarize(data, days = CONFIG.days) {
@@ -1018,16 +1101,17 @@ function buildLargeWidget(widget, payload) {
   addRailCaption(caption, t("cache"), COLORS.cache, s.cached);
 
   widget.addSpacer(14);
-  const sourcesTitle = widget.addText(t("topSources"));
+  const topList = payload.topList === "model" ? "model" : "source";
+  const sourcesTitle = widget.addText(topList === "model" ? t("topModels") : t("topSources"));
   sourcesTitle.font = Font.semiboldSystemFont(11);
   sourcesTitle.textColor = COLORS.muted;
   widget.addSpacer(7);
-  addSourceList(widget, s.topSources.slice(0, 4), 4);
+  addTopList(widget, topList === "model" ? s.topModels : s.topSources, 4, topList);
   return widget;
 }
 
-function addSourceList(parent, sources, limit) {
-  const visible = sources.slice(0, limit);
+function addTopList(parent, entries, limit, kind) {
+  const visible = entries.slice(0, limit);
   if (visible.length === 0) {
     const empty = parent.addText(t("noData"));
     empty.font = Font.systemFont(11);
@@ -1040,7 +1124,12 @@ function addSourceList(parent, sources, limit) {
   rows.layoutVertically();
   rows.spacing = limit > 2 ? 7 : 5;
   const palette = [COLORS.green, COLORS.blue, COLORS.purple, COLORS.cache];
-  visible.forEach(([source, item], idx) => addSourceRow(rows, sourceLabel(source), item, max, palette[idx % palette.length]));
+  visible.forEach(([name, item], idx) => addSourceRow(rows, topItemLabel(name, kind), item, max, palette[idx % palette.length]));
+}
+
+function topItemLabel(name, kind) {
+  if (kind === "source") return sourceLabel(name);
+  return name || "Unknown";
 }
 
 function addSetupMessage(parent) {
@@ -1064,20 +1153,6 @@ function addErrorMessage(parent, message) {
   err.font = Font.systemFont(12);
   err.textColor = COLORS.amber;
   err.lineLimit = 3;
-}
-
-function addLegend(parent, label, color) {
-  const item = parent.addStack();
-  item.layoutHorizontally();
-  item.centerAlignContent();
-  item.spacing = 4;
-  const dot = item.addStack();
-  dot.size = new Size(6, 6);
-  dot.cornerRadius = 3;
-  dot.backgroundColor = color;
-  const text = item.addText(label);
-  text.font = Font.systemFont(8);
-  text.textColor = COLORS.faint;
 }
 
 function addRailCaption(parent, label, color, value) {
@@ -1144,6 +1219,18 @@ async function chooseTheme(current) {
   return current;
 }
 
+async function chooseTopList(current) {
+  const a = new Alert();
+  a.title = t("topList");
+  a.addAction(t("agentClients"));
+  a.addAction(t("models"));
+  a.addCancelAction(t("cancel"));
+  const choice = await a.presentSheet();
+  if (choice === 0) return "source";
+  if (choice === 1) return "model";
+  return current;
+}
+
 async function chooseDays(current) {
   const a = new Alert();
   a.title = t("days");
@@ -1155,6 +1242,40 @@ async function chooseDays(current) {
   return clampDays(a.textFieldValue(0));
 }
 
+async function changeApiKey(current) {
+  const a = new Alert();
+  a.title = t("keyPromptTitle");
+  a.message = t("keyPromptMessage");
+  if (a.addSecureTextField) {
+    a.addSecureTextField(t("newApiKey"), "");
+  } else {
+    a.addTextField(t("newApiKey"), "");
+  }
+  a.addAction(t("save"));
+  a.addCancelAction(t("cancel"));
+  const choice = await a.presentAlert();
+  if (choice < 0) return current;
+
+  const apiKey = normalizeApiKey(a.textFieldValue(0));
+  if (!apiKey) {
+    const invalid = new Alert();
+    invalid.title = t("invalidKeyInput");
+    invalid.addAction(t("ok"));
+    await invalid.presentAlert();
+    return current;
+  }
+
+  clearCache();
+  const next = applyRuntimeSettings({ ...current, apiKey });
+  saveConfig(next);
+  const saved = new Alert();
+  saved.title = t("keyUpdatedTitle");
+  saved.message = t("keyUpdatedMessage");
+  saved.addAction(t("ok"));
+  await saved.presentAlert();
+  return next;
+}
+
 async function presentSettingsIfNeeded(widgetConfig) {
   if (config.runsInWidget || isRefreshRun() || !widgetConfig?.apiKey) return widgetConfig;
 
@@ -1162,25 +1283,36 @@ async function presentSettingsIfNeeded(widgetConfig) {
   while (true) {
     const a = new Alert();
     a.title = t("settingsTitle");
-    a.message = `${t("language")}: ${languageName(cfg.language)}\n${t("appearance")}: ${themeName(cfg.theme)}\n${t("days")}: ${cfg.days}\n\n${t("settingsMessage")}`;
+    a.message = `${t("language")}: ${languageName(cfg.language)}\n${t("appearance")}: ${themeName(cfg.theme)}\n${t("topList")}: ${topListName(cfg.topList)}\n${t("days")}: ${cfg.days}\n\n${t("settingsMessage")}`;
     a.addAction(t("preview"));
+    a.addAction(t("changeKey"));
     a.addAction(t("language"));
     a.addAction(t("appearance"));
+    a.addAction(t("topList"));
     a.addAction(t("days"));
     a.addCancelAction(t("cancel"));
     const choice = await a.presentSheet();
 
     if (choice === 1) {
+      cfg = await changeApiKey(cfg);
+      continue;
+    }
+    if (choice === 2) {
       cfg = applyRuntimeSettings({ ...cfg, language: await chooseLanguage(cfg.language) });
       saveConfig(cfg);
       continue;
     }
-    if (choice === 2) {
+    if (choice === 3) {
       cfg = applyRuntimeSettings({ ...cfg, theme: await chooseTheme(cfg.theme) });
       saveConfig(cfg);
       continue;
     }
-    if (choice === 3) {
+    if (choice === 4) {
+      cfg = applyRuntimeSettings({ ...cfg, topList: await chooseTopList(cfg.topList) });
+      saveConfig(cfg);
+      continue;
+    }
+    if (choice === 5) {
       cfg = applyRuntimeSettings({ ...cfg, days: await chooseDays(cfg.days) });
       saveConfig(cfg);
       continue;
@@ -1196,8 +1328,9 @@ async function main() {
   if (widgetConfig) widgetConfig = applyRuntimeSettings(widgetConfig);
   let payload = {
     configured: Boolean(widgetConfig?.apiKey),
-    apiUrl: widgetConfig?.apiUrl || CONFIG.apiUrl,
+    apiUrl: normalizeApiUrl(widgetConfig?.apiUrl),
     days: clampDays(widgetConfig?.days || CONFIG.days),
+    topList: widgetConfig?.topList || DEFAULT_SETTINGS.topList,
     updatedAt: Date.now(),
     offline: false,
     summary: null,
@@ -1209,11 +1342,16 @@ async function main() {
       const data = await fetchUsage(widgetConfig);
       const summary = summarize(data, clampDays(widgetConfig.days || CONFIG.days));
       payload = { ...payload, summary, updatedAt: Date.now() };
-      saveCache({ payload });
+      saveCache({ request: cacheRequest(widgetConfig), payload });
     } catch (err) {
       const cached = loadCache();
-      if (cached?.payload?.summary) {
-        payload = { ...cached.payload, offline: true, error: err.message || t("fetchFailed") };
+      if (cached?.payload?.summary && cacheMatches(cached, widgetConfig)) {
+        payload = {
+          ...cached.payload,
+          topList: widgetConfig.topList || DEFAULT_SETTINGS.topList,
+          offline: true,
+          error: err.message || t("fetchFailed"),
+        };
       } else {
         payload.error = err.message || t("fetchFailed");
       }

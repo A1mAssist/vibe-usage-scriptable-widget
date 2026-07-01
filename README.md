@@ -79,6 +79,8 @@ cat ~/.vibe-usage/config.json
 
 中号和大号小组件右上角有刷新图标；点它会通过 Scriptable URL scheme 打开并运行当前脚本，完成一次手动拉取并更新缓存。点击小组件主体会打开脚本设置。小号组件受 iOS/Scriptable 点击区域限制，可能只能保留一个点击目标。
 
+设置页支持更换 API Key、切换语言/外观、调整统计天数，并可选择大号小组件底部列表按 Agent 客户端或模型排序展示。
+
 ## 安全边界
 
 - API Key 只存在 iPhone 的 Scriptable Keychain。
