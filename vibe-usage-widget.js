@@ -619,6 +619,7 @@ function tokenMixRailImage(parts, width, height) {
   const labels = parts.filter(p => p.label && p.value > 0).slice(0, 4);
   let labelX = 0;
   labels.forEach((part) => {
+    const textWidth = Math.min(76, Math.max(18, part.label.length * 6.2));
     const dot = new Path();
     dot.addRoundedRect(new Rect(labelX, 2.5, 5, 5), 2.5, 2.5);
     ctx.addPath(dot);
@@ -626,8 +627,8 @@ function tokenMixRailImage(parts, width, height) {
     ctx.fillPath();
 
     ctx.setTextColor(COLORS.drawFaint);
-    ctx.drawTextInRect(part.label, new Rect(labelX + 8, 0, 42, 11));
-    labelX += 8 + Math.min(44, Math.max(16, part.label.length * 5.5)) + 9;
+    ctx.drawTextInRect(part.label, new Rect(labelX + 8, 0, textWidth, 11));
+    labelX += 8 + textWidth + 9;
   });
 
   const railY = Math.max(15, height - 13);
