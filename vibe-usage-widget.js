@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.0.5",
+  version: "0.0.6",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -841,6 +841,21 @@ function formatDurationShort(seconds) {
   return `${(s / 86400).toFixed(1)}d`;
 }
 
+function formatDurationMetric(seconds) {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 3600) return formatDuration(s);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h < 10) return m > 0 ? `${h}h${m}m` : `${h}h`;
+  if (h < 100) return m > 0 ? `${trim1(h + m / 60)}h` : `${h}h`;
+  if (h < 240) return `${h}h`;
+  const days = Math.floor(h / 24);
+  const hours = h % 24;
+  const dayHour = `${days}d${hours}h`;
+  if (dayHour.length <= 6) return dayHour;
+  return `${trim1(s / 86400)}d`;
+}
+
 function trim1(n) {
   const s = n.toFixed(1);
   return s.endsWith(".0") ? s.slice(0, -2) : s;
@@ -1187,7 +1202,7 @@ function buildMediumWidget(widget, payload) {
     width: metricWidth,
     height: metricHeight,
   });
-  addMetric(metrics, t("active"), formatDurationShort(s.activeSeconds), COLORS.blue, {
+  addMetric(metrics, t("active"), formatDurationMetric(s.activeSeconds), COLORS.blue, {
     compact: true,
     width: metricWidth,
     height: metricHeight,
@@ -1313,7 +1328,7 @@ function buildLargeWidget(widget, payload) {
   metrics.size = new Size(LAYOUT.largeContentWidth, 62);
   addMetric(metrics, t("token"), formatTokens(s.totalTokens), COLORS.text, { width: metricWidth, height: 62 });
   addMetric(metrics, t("cost"), formatCostShort(s.cost), COLORS.green, { width: metricWidth, height: 62 });
-  addMetric(metrics, t("active"), formatDurationShort(s.activeSeconds), COLORS.blue, { width: metricWidth, height: 62 });
+  addMetric(metrics, t("active"), formatDurationMetric(s.activeSeconds), COLORS.blue, { width: metricWidth, height: 62 });
   addMetric(metrics, t("cache"), formatTokens(s.cached), COLORS.cache, { width: metricWidth, height: 62 });
   metricRow.addSpacer();
 
