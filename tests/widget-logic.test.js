@@ -82,12 +82,15 @@ globalThis.__widgetTestExports = {
   compareVersions,
   formatDurationMetric,
   formatDurationShort,
+  formatPercent,
+  formatTokenRate,
   formatTokens,
   isVersionNewer,
   normalizeApiKey,
   normalizeApiUrl,
   normalizeVersion,
   parseConfigInput,
+  percentOf,
   segmentChipsImage,
   shouldCheckUpdate,
   summarize,
@@ -143,6 +146,10 @@ assert.equal(widget.formatDurationShort(11 * 86400), "11d 0h");
 assert.equal(widget.formatDurationMetric(23 * 3600 + 35 * 60), "23.6h");
 assert.equal(widget.formatDurationMetric(5 * 3600 + 7 * 60), "5h 7m");
 assert.equal(widget.formatDurationMetric(12 * 86400 + 8 * 3600), "12d 8h");
+assert.equal(widget.formatPercent(widget.percentOf(119500000, 130000000)), "92%");
+assert.equal(widget.formatPercent(widget.percentOf(1, 1000)), "0.1%");
+assert.equal(widget.formatTokenRate(5400000, 3600), "5.4M/hr");
+assert.equal(widget.formatTokenRate(5400000, 0), "-/hr");
 
 const now = Date.now();
 const summary = widget.summarize({

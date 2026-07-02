@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.0.8",
+  version: "0.0.9",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -61,6 +61,9 @@ const I18N = {
     out: "Out",
     think: "Reasoning",
     tokenMix: "Token mix",
+    cacheShare: "Cache share",
+    dailyCost: "Daily cost",
+    tokenRate: "Token rate",
     topSources: "Top sources",
     topModels: "Top models",
     lastDays: "Last {days} days",
@@ -136,6 +139,9 @@ const I18N = {
     out: "输出",
     think: "推理",
     tokenMix: "Token 组成",
+    cacheShare: "缓存占比",
+    dailyCost: "日均费用",
+    tokenRate: "Token 速率",
     topSources: "主要来源",
     topModels: "主要模型",
     lastDays: "近 {days} 天",
@@ -818,6 +824,25 @@ function formatCostShort(n) {
   return formatCost(n);
 }
 
+function formatPercent(value) {
+  const n = Math.max(0, Math.min(100, number(value)));
+  if (n >= 10) return `${Math.round(n)}%`;
+  if (n > 0) return `${trim1(n)}%`;
+  return "0%";
+}
+
+function percentOf(value, total) {
+  const base = number(total);
+  if (base <= 0) return 0;
+  return number(value) / base * 100;
+}
+
+function formatTokenRate(tokens, seconds) {
+  const hours = number(seconds) / 3600;
+  if (hours <= 0) return "-/hr";
+  return `${formatTokens(number(tokens) / hours)}/hr`;
+}
+
 function formatDuration(seconds) {
   const s = Math.max(0, Math.round(seconds));
   if (s < 60) return `${s}s`;
@@ -1332,7 +1357,9 @@ function buildLargeWidget(widget, payload) {
   addMetric(metrics, t("cache"), formatTokens(s.cached), COLORS.cache, { width: metricWidth, height: 62 });
   metricRow.addSpacer();
 
-  widget.addSpacer(12);
+  widget.addSpacer(10);
+  addInsightStrip(widget, s, payload.days);
+  widget.addSpacer(10);
   const section = widget.addStack();
   section.layoutHorizontally();
   section.centerAlignContent();
@@ -1360,11 +1387,11 @@ function buildLargeWidget(widget, payload) {
 
   const caption = widget.addStack();
   caption.layoutHorizontally();
-  caption.spacing = 10;
-  addRailCaption(caption, t("in"), COLORS.blue, s.input);
-  addRailCaption(caption, t("out"), COLORS.green, s.output);
-  addRailCaption(caption, t("think"), COLORS.purple, s.reasoning);
-  addRailCaption(caption, t("cache"), COLORS.cache, s.cached);
+  caption.spacing = 8;
+  addRailCaption(caption, t("in"), COLORS.blue, s.input, s.totalTokens);
+  addRailCaption(caption, t("out"), COLORS.green, s.output, s.totalTokens);
+  addRailCaption(caption, t("think"), COLORS.purple, s.reasoning, s.totalTokens);
+  addRailCaption(caption, t("cache"), COLORS.cache, s.cached, s.totalTokens);
 
   widget.addSpacer(14);
   const topList = payload.topList === "model" ? "model" : "source";
@@ -1391,6 +1418,42 @@ function addTopList(parent, entries, limit, kind) {
   rows.spacing = limit > 2 ? 7 : 5;
   const palette = [COLORS.green, COLORS.blue, COLORS.purple, COLORS.cache];
   visible.forEach(([name, item], idx) => addSourceRow(rows, topItemLabel(name, kind), item, max, palette[idx % palette.length]));
+}
+
+function addInsightStrip(parent, summary, days) {
+  const row = parent.addStack();
+  row.layoutHorizontally();
+  row.spacing = 6;
+  row.addSpacer();
+  const cacheShare = formatPercent(percentOf(summary.cached, summary.totalTokens));
+  const dailyCost = formatCostShort(summary.cost / Math.max(1, clampDays(days)));
+  const tokenRate = formatTokenRate(summary.totalTokens, summary.activeSeconds);
+  addInsight(row, t("cacheShare"), cacheShare, COLORS.cache);
+  addInsight(row, t("dailyCost"), `${dailyCost}/d`, COLORS.green);
+  addInsight(row, t("tokenRate"), tokenRate, COLORS.blue);
+  row.addSpacer();
+}
+
+function addInsight(parent, label, value, color) {
+  const box = parent.addStack();
+  box.layoutVertically();
+  box.spacing = 1;
+  box.backgroundColor = COLORS.card;
+  box.cornerRadius = 8;
+  box.setPadding(5, 8, 5, 8);
+  box.size = new Size(96, 34);
+
+  const l = box.addText(label);
+  l.font = Font.systemFont(7);
+  l.textColor = COLORS.faint;
+  l.lineLimit = 1;
+  l.minimumScaleFactor = 0.7;
+
+  const v = box.addText(value);
+  v.font = Font.semiboldMonospacedSystemFont(10);
+  v.textColor = color;
+  v.lineLimit = 1;
+  v.minimumScaleFactor = 0.65;
 }
 
 function topItemLabel(name, kind) {
@@ -1421,7 +1484,7 @@ function addErrorMessage(parent, message) {
   err.lineLimit = 3;
 }
 
-function addRailCaption(parent, label, color, value) {
+function addRailCaption(parent, label, color, value, total) {
   if (value <= 0) return;
   const item = parent.addStack();
   item.layoutHorizontally();
@@ -1431,9 +1494,11 @@ function addRailCaption(parent, label, color, value) {
   dot.size = new Size(5, 5);
   dot.cornerRadius = 2.5;
   dot.backgroundColor = color;
-  const text = item.addText(label);
+  const text = item.addText(`${label} ${formatPercent(percentOf(value, total))}`);
   text.font = Font.systemFont(8);
   text.textColor = COLORS.faint;
+  text.lineLimit = 1;
+  text.minimumScaleFactor = 0.7;
 }
 
 function isRefreshRun() {
