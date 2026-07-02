@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.0.4",
+  version: "0.0.5",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -922,7 +922,10 @@ function segmentChipsImage(parts, width, height, gap) {
   ctx.respectScreenScale = true;
 
   const visible = parts.filter(p => p.value > 0);
-  if (visible.length === 0) return ctx.getImage();
+  if (visible.length === 0) {
+    drawRoundedTrack(ctx, 0, 0, width, height);
+    return ctx.getImage();
+  }
 
   const total = Math.max(1, visible.reduce((sum, p) => sum + Math.max(0, p.value), 0));
   const available = Math.max(1, width - gap * (visible.length - 1));
@@ -981,13 +984,8 @@ function tokenMixRailImage(parts, width, height) {
 
 function overlayRailImage(ctx, parts, width, y, height, gap) {
   const visible = parts.filter(p => p.value > 0);
+  drawRoundedTrack(ctx, 0, y, width, height);
   if (visible.length === 0) return ctx.getImage();
-
-  const track = new Path();
-  track.addRoundedRect(new Rect(0, y, width, height), height / 2.8, height / 2.8);
-  ctx.addPath(track);
-  ctx.setFillColor(COLORS.track);
-  ctx.fillPath();
 
   const total = Math.max(1, visible.reduce((sum, p) => sum + Math.max(0, p.value), 0));
   const available = Math.max(1, width - gap * (visible.length - 1));
@@ -1013,6 +1011,14 @@ function overlayRailImage(ctx, parts, width, y, height, gap) {
   });
 
   return ctx.getImage();
+}
+
+function drawRoundedTrack(ctx, x, y, width, height) {
+  const track = new Path();
+  track.addRoundedRect(new Rect(x, y, width, height), height / 2.8, height / 2.8);
+  ctx.addPath(track);
+  ctx.setFillColor(COLORS.track);
+  ctx.fillPath();
 }
 
 function progressImage(ratio, width, height, color) {

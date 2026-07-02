@@ -17,10 +17,59 @@ class Color {
   }
 }
 
+class Size {
+  constructor(width, height) {
+    this.width = width;
+    this.height = height;
+  }
+}
+
+class Rect {
+  constructor(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+  }
+}
+
+class Path {
+  addRoundedRect() {}
+}
+
+class DrawContext {
+  constructor() {
+    this.draws = 0;
+  }
+
+  setFont() {}
+  setTextColor() {}
+  addPath() {}
+  setFillColor() {}
+  fillPath() {
+    this.draws += 1;
+  }
+  drawTextInRect() {
+    this.draws += 1;
+  }
+  getImage() {
+    return this.draws > 0 ? { type: "image" } : null;
+  }
+}
+
+const Font = {
+  semiboldSystemFont: size => ({ size }),
+};
+
 const sandbox = {
   console,
   Color,
+  DrawContext,
   Device: { language: () => "en" },
+  Font,
+  Path,
+  Rect,
+  Size,
 };
 
 vm.createContext(sandbox);
@@ -38,8 +87,10 @@ globalThis.__widgetTestExports = {
   normalizeApiUrl,
   normalizeVersion,
   parseConfigInput,
+  segmentChipsImage,
   shouldCheckUpdate,
   summarize,
+  tokenMixRailImage,
   validateScriptUpdate,
 };
 `),
@@ -161,5 +212,7 @@ assert.equal(widget.shouldCheckUpdate(Date.now()), false);
 assert.equal(widget.shouldCheckUpdate(Date.now() - 25 * 3600 * 1000), true);
 assert.equal(widget.validateScriptUpdate(source), true);
 assert.equal(widget.validateScriptUpdate("alert('nope')"), false);
+assert.deepEqual(widget.segmentChipsImage([{ value: 0 }], 124, 8, 3), { type: "image" });
+assert.deepEqual(widget.tokenMixRailImage([{ label: "In", value: 0 }], 291, 22), { type: "image" });
 
 console.log("widget logic smoke tests passed");
