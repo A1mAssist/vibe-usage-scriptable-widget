@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.1.0",
+  version: "0.1.1",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -72,6 +72,9 @@ const I18N = {
     dayBeforeYesterday: "Day Before Yesterday",
     usingCachedData: "Using Cached Data",
     noData: "No data yet. Run vibe-usage sync on your computer first.",
+    noUsageToday: "No Usage Today",
+    noUsageWindow: "No Usage In This Window",
+    noUsageHint: "Try a wider day range, or sync Vibe Usage on your computer.",
     apiKeyRequired: "API Key Required",
     setupHint: "Copy your vbu_ key, then run this script once in Scriptable.",
     configuredTitle: "Vibe Usage Configured",
@@ -94,6 +97,11 @@ const I18N = {
     changeKey: "Change API Key",
     checkUpdates: "Check For Updates",
     updateMode: "Script Updates",
+    dataSettings: "Data Settings",
+    displaySettings: "Display Settings",
+    updateSettings: "Update Settings",
+    diagnostics: "Diagnostics",
+    restoreBackup: "Restore Backup",
     autoUpdate: "Auto-Update",
     manualUpdate: "Manual Checks",
     days: "Days",
@@ -124,6 +132,20 @@ const I18N = {
     upToDateMessage: "You are running the latest version: {version}.",
     updateFailedTitle: "Update Failed",
     updateFailedMessage: "{message}",
+    restoreBackupTitle: "Restore Backup",
+    restoreBackupMessage: "Restore {backup}? The current script will be backed up first.",
+    restoreCompleteTitle: "Backup Restored",
+    restoreCompleteMessage: "Restored {backup}. The next run will use the restored script.",
+    noBackupsTitle: "No Backups Found",
+    noBackupsMessage: "No script backups were found for this script.",
+    diagnosticsTitle: "Diagnostics",
+    apiKeySaved: "API Key Saved",
+    cacheStatus: "Cache",
+    scriptName: "Script",
+    lastUpdateCheck: "Last Update Check",
+    yes: "Yes",
+    no: "No",
+    none: "None",
     updateAssetMissing: "Release asset is missing.",
     updateValidationFailed: "Downloaded script did not pass validation.",
     scriptFileNotFound: "Current script file was not found.",
@@ -150,6 +172,9 @@ const I18N = {
     dayBeforeYesterday: "前天",
     usingCachedData: "正在使用缓存数据",
     noData: "暂无数据。先在电脑上运行 vibe-usage 同步。",
+    noUsageToday: "今天暂无用量",
+    noUsageWindow: "当前时间范围暂无用量",
+    noUsageHint: "可以扩大统计天数，或先在电脑上同步 Vibe Usage。",
     apiKeyRequired: "需要 API Key",
     setupHint: "复制 vbu_ 开头的 Key，然后在 Scriptable 里运行一次脚本。",
     configuredTitle: "Vibe Usage 已配置",
@@ -172,6 +197,11 @@ const I18N = {
     changeKey: "更换 API Key",
     checkUpdates: "检查更新",
     updateMode: "脚本更新",
+    dataSettings: "数据设置",
+    displaySettings: "显示设置",
+    updateSettings: "更新设置",
+    diagnostics: "诊断信息",
+    restoreBackup: "恢复备份",
     autoUpdate: "自动更新",
     manualUpdate: "手动检查",
     days: "天数",
@@ -202,6 +232,20 @@ const I18N = {
     upToDateMessage: "当前已是最新版本：{version}。",
     updateFailedTitle: "更新失败",
     updateFailedMessage: "{message}",
+    restoreBackupTitle: "恢复备份",
+    restoreBackupMessage: "恢复 {backup}？当前脚本会先自动备份。",
+    restoreCompleteTitle: "备份已恢复",
+    restoreCompleteMessage: "已恢复 {backup}。下次运行会使用恢复后的脚本。",
+    noBackupsTitle: "没有找到备份",
+    noBackupsMessage: "没有找到这个脚本的备份文件。",
+    diagnosticsTitle: "诊断信息",
+    apiKeySaved: "API Key 已保存",
+    cacheStatus: "缓存",
+    scriptName: "脚本",
+    lastUpdateCheck: "上次检查更新",
+    yes: "是",
+    no: "否",
+    none: "无",
     updateAssetMissing: "Release 资源文件不存在。",
     updateValidationFailed: "下载的脚本未通过校验。",
     scriptFileNotFound: "找不到当前脚本文件。",
@@ -607,7 +651,58 @@ async function installScriptUpdate(downloadUrl) {
   const backup = backupPathFor(path);
   fm.writeString(backup, existing);
   fm.writeString(path, source);
+  pruneScriptBackups(fm, path, 3);
   return backup.split(/[\\/]/).pop();
+}
+
+function listScriptBackups() {
+  const current = currentScriptFile();
+  if (!current) return [];
+  const { fm, path } = current;
+  if (!fm.listContents) return [];
+  const dir = path.replace(/[\\/][^\\/]+$/, "");
+  const prefix = `${Script.name()}.backup-v`;
+  try {
+    return fm.listContents(dir)
+      .filter(name => name.startsWith(prefix) && name.endsWith(".js"))
+      .sort()
+      .reverse()
+      .map(name => ({ fm, dir, name, path: fm.joinPath(dir, name) }));
+  } catch {
+    return [];
+  }
+}
+
+function pruneScriptBackups(fm, scriptPath, keep) {
+  if (!fm.listContents) return;
+  const dir = scriptPath.replace(/[\\/][^\\/]+$/, "");
+  const prefix = `${Script.name()}.backup-v`;
+  try {
+    const backups = fm.listContents(dir)
+      .filter(name => name.startsWith(prefix) && name.endsWith(".js"))
+      .sort()
+      .reverse();
+    backups.slice(Math.max(0, keep)).forEach(name => {
+      try {
+        fm.remove(fm.joinPath(dir, name));
+      } catch {}
+    });
+  } catch {}
+}
+
+async function restoreScriptBackup(backup) {
+  const current = currentScriptFile();
+  if (!current) throw new Error(t("scriptFileNotFound"));
+  const { fm, path } = current;
+  try {
+    if (fm.isFileDownloaded && !fm.isFileDownloaded(backup.path)) await fm.downloadFileFromiCloud(backup.path);
+  } catch {}
+  const existing = fm.readString(path);
+  const backupCurrent = backupPathFor(path);
+  fm.writeString(backupCurrent, existing);
+  fm.writeString(path, fm.readString(backup.path));
+  pruneScriptBackups(fm, path, 3);
+  return backup.name;
 }
 
 async function checkForScriptUpdate(configValue, options = {}) {
@@ -841,6 +936,17 @@ function formatTokenRate(tokens, seconds) {
   const hours = number(seconds) / 3600;
   if (hours <= 0) return "-/hr";
   return `${formatTokens(number(tokens) / hours)}/hr`;
+}
+
+function insightSummary(summary, days) {
+  const cacheShare = formatPercent(percentOf(summary.cached, summary.totalTokens));
+  const dailyCost = formatCostShort(summary.cost / Math.max(1, clampDays(days)));
+  const tokenRate = formatTokenRate(summary.totalTokens, summary.activeSeconds);
+  return `${t("cache")} ${cacheShare} · ${dailyCost}/d · ${tokenRate}`;
+}
+
+function noUsageTitle(days) {
+  return clampDays(days) <= 1 ? t("noUsageToday") : t("noUsageWindow");
 }
 
 function formatDuration(seconds) {
@@ -1154,7 +1260,7 @@ function addSourceRow(parent, label, item, maxTokens, color) {
   const row = parent.addStack();
   row.layoutHorizontally();
   row.centerAlignContent();
-  row.spacing = 7;
+  row.spacing = 6;
 
   const name = row.addText(label);
   name.font = Font.semiboldSystemFont(10);
@@ -1164,8 +1270,8 @@ function addSourceRow(parent, label, item, maxTokens, color) {
   name.size = new Size(58, 0);
 
   const pct = maxTokens > 0 ? item.tokens / maxTokens : 0;
-  const img = row.addImage(progressImage(pct, 96, 6, color));
-  img.imageSize = new Size(96, 6);
+  const img = row.addImage(progressImage(pct, 82, 6, color));
+  img.imageSize = new Size(82, 6);
 
   row.addSpacer();
 
@@ -1173,6 +1279,14 @@ function addSourceRow(parent, label, item, maxTokens, color) {
   value.font = Font.semiboldMonospacedSystemFont(10);
   value.textColor = COLORS.text;
   value.lineLimit = 1;
+  value.size = new Size(46, 0);
+
+  const cost = row.addText(formatCostShort(item.cost));
+  cost.font = Font.semiboldMonospacedSystemFont(10);
+  cost.textColor = COLORS.green;
+  cost.lineLimit = 1;
+  cost.minimumScaleFactor = 0.7;
+  cost.size = new Size(50, 0);
 }
 
 function buildWidget(payload) {
@@ -1243,6 +1357,12 @@ function buildMediumWidget(widget, payload) {
 
   widget.addSpacer(7);
 
+  if (s.totalTokens <= 0) {
+    addNoUsageState(widget, payload.days, true, LAYOUT.mediumContentWidth);
+    widget.addSpacer();
+    return widget;
+  }
+
   const mixRow = widget.addStack();
   mixRow.layoutHorizontally();
   mixRow.addSpacer();
@@ -1300,6 +1420,15 @@ function buildSmallWidget(widget, payload) {
   }
 
   const s = payload.summary;
+  if (s.totalTokens <= 0) {
+    addNoUsageState(widget, payload.days, true, 124);
+    widget.addSpacer();
+    const updated = widget.addText(t("updated", { time: agoText(payload.updatedAt) }));
+    updated.font = Font.systemFont(9);
+    updated.textColor = COLORS.faint;
+    return widget;
+  }
+
   const total = fitText(widget.addText(formatTokens(s.totalTokens)), 30, 16);
   total.textColor = COLORS.text;
   widget.addSpacer(4);
@@ -1358,6 +1487,17 @@ function buildLargeWidget(widget, payload) {
   addMetric(metrics, t("active"), formatDurationMetric(s.activeSeconds), COLORS.blue, { width: metricWidth, height: 62 });
   addMetric(metrics, t("cache"), formatTokens(s.cached), COLORS.cache, { width: metricWidth, height: 62 });
   metricRow.addSpacer();
+
+  if (s.totalTokens <= 0) {
+    widget.addSpacer(12);
+    addNoUsageState(widget, payload.days, false, LAYOUT.largeContentWidth);
+    widget.addSpacer(8);
+    const updated = widget.addText(t("updated", { time: agoText(payload.updatedAt) }));
+    updated.font = Font.systemFont(10);
+    updated.textColor = COLORS.faint;
+    widget.addSpacer();
+    return widget;
+  }
 
   widget.addSpacer(10);
   addInsightStrip(widget, s, payload.days);
@@ -1426,39 +1566,19 @@ function addInsightStrip(parent, summary, days) {
   const outer = parent.addStack();
   outer.layoutHorizontally();
   outer.addSpacer();
-  const row = outer.addStack();
-  row.layoutHorizontally();
-  row.spacing = 6;
-  row.size = new Size(LAYOUT.largeContentWidth, 34);
-  const cacheShare = formatPercent(percentOf(summary.cached, summary.totalTokens));
-  const dailyCost = formatCostShort(summary.cost / Math.max(1, clampDays(days)));
-  const tokenRate = formatTokenRate(summary.totalTokens, summary.activeSeconds);
-  addInsight(row, t("cacheShare"), cacheShare, COLORS.cache);
-  addInsight(row, t("dailyCost"), `${dailyCost}/d`, COLORS.green);
-  addInsight(row, t("tokenRate"), tokenRate, COLORS.blue);
+  const pill = outer.addStack();
+  pill.layoutHorizontally();
+  pill.centerAlignContent();
+  pill.backgroundColor = COLORS.card;
+  pill.cornerRadius = 8;
+  pill.setPadding(6, 10, 6, 10);
+  pill.size = new Size(LAYOUT.largeContentWidth, 30);
+  const text = pill.addText(insightSummary(summary, days));
+  text.font = Font.semiboldMonospacedSystemFont(10);
+  text.textColor = COLORS.muted;
+  text.lineLimit = 1;
+  text.minimumScaleFactor = 0.65;
   outer.addSpacer();
-}
-
-function addInsight(parent, label, value, color) {
-  const box = parent.addStack();
-  box.layoutVertically();
-  box.spacing = 1;
-  box.backgroundColor = COLORS.card;
-  box.cornerRadius = 8;
-  box.setPadding(5, 8, 5, 8);
-  box.size = new Size(96, 34);
-
-  const l = box.addText(label);
-  l.font = Font.systemFont(7);
-  l.textColor = COLORS.faint;
-  l.lineLimit = 1;
-  l.minimumScaleFactor = 0.7;
-
-  const v = box.addText(value);
-  v.font = Font.semiboldMonospacedSystemFont(10);
-  v.textColor = color;
-  v.lineLimit = 1;
-  v.minimumScaleFactor = 0.65;
 }
 
 function topItemLabel(name, kind) {
@@ -1487,6 +1607,32 @@ function addErrorMessage(parent, message) {
   err.font = Font.systemFont(12);
   err.textColor = COLORS.amber;
   err.lineLimit = 3;
+}
+
+function addNoUsageState(parent, days, compact, width) {
+  const outer = parent.addStack();
+  outer.layoutHorizontally();
+  outer.addSpacer();
+  const box = outer.addStack();
+  box.layoutVertically();
+  box.spacing = compact ? 3 : 4;
+  box.backgroundColor = COLORS.card;
+  box.cornerRadius = compact ? 9 : 10;
+  box.setPadding(compact ? 8 : 10, 10, compact ? 8 : 10, 10);
+  if (width) box.size = new Size(width, compact ? 54 : 66);
+
+  const title = box.addText(noUsageTitle(days));
+  title.font = Font.semiboldSystemFont(compact ? 12 : 13);
+  title.textColor = COLORS.text;
+  title.lineLimit = 1;
+  title.minimumScaleFactor = 0.75;
+
+  const hint = box.addText(t("noUsageHint"));
+  hint.font = Font.systemFont(compact ? 9 : 10);
+  hint.textColor = COLORS.muted;
+  hint.lineLimit = compact ? 2 : 2;
+  hint.minimumScaleFactor = 0.72;
+  outer.addSpacer();
 }
 
 function addRailCaption(parent, label, color, value, total) {
@@ -1643,6 +1789,140 @@ async function completeOobeIfNeeded(widgetConfig) {
   return next;
 }
 
+async function presentDataSettings(cfg) {
+  let next = applyRuntimeSettings(cfg);
+  while (true) {
+    const a = new Alert();
+    a.title = t("dataSettings");
+    a.message = `${t("apiKeySaved")}: ${next.apiKey ? t("yes") : t("no")}\n${t("days")}: ${next.days}`;
+    a.addAction(t("changeKey"));
+    a.addAction(t("days"));
+    a.addCancelAction(t("cancel"));
+    const choice = await a.presentSheet();
+    if (choice === 0) {
+      next = await changeApiKey(next);
+      continue;
+    }
+    if (choice === 1) {
+      next = applyRuntimeSettings({ ...next, days: await chooseDays(next.days) });
+      saveConfig(next);
+      continue;
+    }
+    return next;
+  }
+}
+
+async function presentDisplaySettings(cfg) {
+  let next = applyRuntimeSettings(cfg);
+  while (true) {
+    const a = new Alert();
+    a.title = t("displaySettings");
+    a.message = `${t("language")}: ${languageName(next.language)}\n${t("appearance")}: ${themeName(next.theme)}\n${t("topList")}: ${topListName(next.topList)}`;
+    a.addAction(t("language"));
+    a.addAction(t("appearance"));
+    a.addAction(t("topList"));
+    a.addCancelAction(t("cancel"));
+    const choice = await a.presentSheet();
+    if (choice === 0) {
+      next = applyRuntimeSettings({ ...next, language: await chooseLanguage(next.language) });
+      saveConfig(next);
+      continue;
+    }
+    if (choice === 1) {
+      next = applyRuntimeSettings({ ...next, theme: await chooseTheme(next.theme) });
+      saveConfig(next);
+      continue;
+    }
+    if (choice === 2) {
+      next = applyRuntimeSettings({ ...next, topList: await chooseTopList(next.topList) });
+      saveConfig(next);
+      continue;
+    }
+    return next;
+  }
+}
+
+async function presentUpdateSettings(cfg) {
+  let next = applyRuntimeSettings(cfg);
+  while (true) {
+    const a = new Alert();
+    a.title = t("updateSettings");
+    a.message = `${t("currentVersion")}: ${CONFIG.version}\n${t("updateMode")}: ${updateModeName(next.updateMode)}\n${t("lastUpdateCheck")}: ${next.lastUpdateCheckAt ? agoText(next.lastUpdateCheckAt) : t("none")}`;
+    a.addAction(t("checkUpdates"));
+    a.addAction(t("updateMode"));
+    a.addAction(t("restoreBackup"));
+    a.addCancelAction(t("cancel"));
+    const choice = await a.presentSheet();
+    if (choice === 0) {
+      next = await checkForScriptUpdate(next, { manual: true });
+      continue;
+    }
+    if (choice === 1) {
+      next = applyRuntimeSettings({ ...next, updateMode: await chooseUpdateMode(next.updateMode), oobeComplete: true });
+      saveConfig(next);
+      continue;
+    }
+    if (choice === 2) {
+      await presentRestoreBackup();
+      continue;
+    }
+    return next;
+  }
+}
+
+async function presentRestoreBackup() {
+  const backups = listScriptBackups().slice(0, 5);
+  if (backups.length === 0) {
+    await presentUpdateAlert(t("noBackupsTitle"), t("noBackupsMessage"));
+    return;
+  }
+
+  const pick = new Alert();
+  pick.title = t("restoreBackupTitle");
+  backups.forEach(backup => pick.addAction(backup.name));
+  pick.addCancelAction(t("cancel"));
+  const choice = await pick.presentSheet();
+  if (choice < 0 || !backups[choice]) return;
+
+  const selected = backups[choice];
+  const confirm = new Alert();
+  confirm.title = t("restoreBackupTitle");
+  confirm.message = t("restoreBackupMessage", { backup: selected.name });
+  confirm.addAction(t("restoreBackup"));
+  confirm.addCancelAction(t("cancel"));
+  const shouldRestore = await confirm.presentAlert();
+  if (shouldRestore !== 0) return;
+
+  try {
+    const name = await restoreScriptBackup(selected);
+    await presentUpdateAlert(t("restoreCompleteTitle"), t("restoreCompleteMessage", { backup: name }));
+  } catch (err) {
+    await presentUpdateAlert(t("updateFailedTitle"), t("updateFailedMessage", { message: err.message || t("fetchFailed") }));
+  }
+}
+
+async function presentDiagnostics(cfg) {
+  const cache = loadCache();
+  const cacheText = cache?.payload?.updatedAt
+    ? t("updated", { time: agoText(cache.payload.updatedAt) })
+    : t("none");
+  const a = new Alert();
+  a.title = t("diagnosticsTitle");
+  a.message = [
+    `${t("currentVersion")}: ${CONFIG.version}`,
+    `${t("scriptName")}: ${Script.name()}`,
+    `${t("days")}: ${cfg.days}`,
+    `${t("topList")}: ${topListName(cfg.topList)}`,
+    `${t("updateMode")}: ${updateModeName(cfg.updateMode)}`,
+    `${t("lastUpdateCheck")}: ${cfg.lastUpdateCheckAt ? agoText(cfg.lastUpdateCheckAt) : t("none")}`,
+    `API URL: ${cfg.apiUrl}`,
+    `${t("apiKeySaved")}: ${cfg.apiKey ? t("yes") : t("no")}`,
+    `${t("cacheStatus")}: ${cacheText}`,
+  ].join("\n");
+  a.addAction(t("ok"));
+  await a.presentAlert();
+}
+
 async function presentSettingsIfNeeded(widgetConfig) {
   if (config.runsInWidget || isRefreshRun() || !widgetConfig?.apiKey) return widgetConfig;
 
@@ -1650,49 +1930,29 @@ async function presentSettingsIfNeeded(widgetConfig) {
   while (true) {
     const a = new Alert();
     a.title = t("settingsTitle");
-    a.message = `${t("currentVersion")}: ${CONFIG.version}\n${t("updateMode")}: ${updateModeName(cfg.updateMode)}\n${t("language")}: ${languageName(cfg.language)}\n${t("appearance")}: ${themeName(cfg.theme)}\n${t("topList")}: ${topListName(cfg.topList)}\n${t("days")}: ${cfg.days}\n\n${t("settingsMessage")}`;
+    a.message = `${t("currentVersion")}: ${CONFIG.version}\n${t("days")}: ${cfg.days}\n${t("topList")}: ${topListName(cfg.topList)}\n${t("updateMode")}: ${updateModeName(cfg.updateMode)}\n\n${t("settingsMessage")}`;
     a.addAction(t("preview"));
-    a.addAction(t("changeKey"));
-    a.addAction(t("checkUpdates"));
-    a.addAction(t("updateMode"));
-    a.addAction(t("language"));
-    a.addAction(t("appearance"));
-    a.addAction(t("topList"));
-    a.addAction(t("days"));
+    a.addAction(t("dataSettings"));
+    a.addAction(t("displaySettings"));
+    a.addAction(t("updateSettings"));
+    a.addAction(t("diagnostics"));
     a.addCancelAction(t("cancel"));
     const choice = await a.presentSheet();
 
     if (choice === 1) {
-      cfg = await changeApiKey(cfg);
+      cfg = await presentDataSettings(cfg);
       continue;
     }
     if (choice === 2) {
-      cfg = await checkForScriptUpdate(cfg, { manual: true });
+      cfg = await presentDisplaySettings(cfg);
       continue;
     }
     if (choice === 3) {
-      cfg = applyRuntimeSettings({ ...cfg, updateMode: await chooseUpdateMode(cfg.updateMode), oobeComplete: true });
-      saveConfig(cfg);
+      cfg = await presentUpdateSettings(cfg);
       continue;
     }
     if (choice === 4) {
-      cfg = applyRuntimeSettings({ ...cfg, language: await chooseLanguage(cfg.language) });
-      saveConfig(cfg);
-      continue;
-    }
-    if (choice === 5) {
-      cfg = applyRuntimeSettings({ ...cfg, theme: await chooseTheme(cfg.theme) });
-      saveConfig(cfg);
-      continue;
-    }
-    if (choice === 6) {
-      cfg = applyRuntimeSettings({ ...cfg, topList: await chooseTopList(cfg.topList) });
-      saveConfig(cfg);
-      continue;
-    }
-    if (choice === 7) {
-      cfg = applyRuntimeSettings({ ...cfg, days: await chooseDays(cfg.days) });
-      saveConfig(cfg);
+      await presentDiagnostics(cfg);
       continue;
     }
 

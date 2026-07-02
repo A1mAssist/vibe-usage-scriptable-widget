@@ -80,15 +80,18 @@ globalThis.__widgetTestExports = {
   cacheRequest,
   clampDays,
   compareVersions,
+  formatCostShort,
   formatDurationMetric,
   formatDurationShort,
   formatPercent,
   formatTokenRate,
   formatTokens,
+  insightSummary,
   isVersionNewer,
   normalizeApiKey,
   normalizeApiUrl,
   normalizeVersion,
+  noUsageTitle,
   parseConfigInput,
   percentOf,
   segmentChipsImage,
@@ -141,15 +144,22 @@ assert.deepEqual(plain(widget.parseConfigInput(JSON.stringify({
 
 assert.equal(widget.formatTokens(1200), "1.2K");
 assert.equal(widget.formatTokens(1200000), "1.2M");
+assert.equal(widget.formatTokens(999500000), "999.5M");
+assert.equal(widget.formatCostShort(1234), "$1.2K");
 assert.equal(widget.formatDurationShort(3660), "1h 1m");
 assert.equal(widget.formatDurationShort(11 * 86400), "11d 0h");
 assert.equal(widget.formatDurationMetric(23 * 3600 + 35 * 60), "23.6h");
 assert.equal(widget.formatDurationMetric(5 * 3600 + 7 * 60), "5h 7m");
 assert.equal(widget.formatDurationMetric(12 * 86400 + 8 * 3600), "12d 8h");
+assert.equal(widget.formatDurationMetric(99 * 3600 + 30 * 60), "99.5h");
 assert.equal(widget.formatPercent(widget.percentOf(119500000, 130000000)), "92%");
 assert.equal(widget.formatPercent(widget.percentOf(1, 1000)), "0.1%");
+assert.equal(widget.percentOf(1, 0), 0);
 assert.equal(widget.formatTokenRate(5400000, 3600), "5.4M/hr");
 assert.equal(widget.formatTokenRate(5400000, 0), "-/hr");
+assert.equal(widget.noUsageTitle(1), "No Usage Today");
+assert.equal(widget.noUsageTitle(7), "No Usage In This Window");
+assert.equal(widget.insightSummary({ cached: 0, totalTokens: 0, cost: 0, activeSeconds: 0 }, 1), "Cache 0% · $0.00/d · -/hr");
 
 const now = Date.now();
 const summary = widget.summarize({
@@ -198,6 +208,7 @@ assert.equal(summary.sessions, 1);
 assert.equal(summary.activeSeconds, 1200);
 assert.equal(summary.topSources[0][0], "claude-code");
 assert.equal(summary.topModels[0][0], "claude-sonnet");
+assert.equal(widget.insightSummary(summary, 7), "Cache 4.3% · $0.05/d · 1.8K/hr");
 
 const request = {
   apiKey: "vbu_one",
