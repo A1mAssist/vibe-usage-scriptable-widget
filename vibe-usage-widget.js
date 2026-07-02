@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.0.9",
+  version: "0.1.0",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -60,69 +60,69 @@ const I18N = {
     in: "In",
     out: "Out",
     think: "Reasoning",
-    tokenMix: "Token mix",
-    cacheShare: "Cache share",
-    dailyCost: "Daily cost",
-    tokenRate: "Token rate",
-    topSources: "Top sources",
-    topModels: "Top models",
-    lastDays: "Last {days} days",
+    tokenMix: "Token Mix",
+    cacheShare: "Cache Share",
+    dailyCost: "Daily Cost",
+    tokenRate: "Token Rate",
+    topSources: "Top Sources",
+    topModels: "Top Models",
+    lastDays: "Last {days} Days",
     updated: "Updated {time}",
     yesterday: "Yesterday",
-    dayBeforeYesterday: "Day before yesterday",
-    usingCachedData: "Using cached data",
+    dayBeforeYesterday: "Day Before Yesterday",
+    usingCachedData: "Using Cached Data",
     noData: "No data yet. Run vibe-usage sync on your computer first.",
-    apiKeyRequired: "API key required",
+    apiKeyRequired: "API Key Required",
     setupHint: "Copy your vbu_ key, then run this script once in Scriptable.",
-    configuredTitle: "Vibe Usage configured",
+    configuredTitle: "Vibe Usage Configured",
     configuredMessage: "API key saved to Scriptable Keychain. Refresh the widget on your Home Screen.",
-    setupTitle: "API key required",
+    setupTitle: "API Key Required",
     setupMessage: "Copy your vbu_ Vibe Usage API key, or place vibeusage-widget.json in Scriptable iCloud Drive, then run once.",
     ok: "OK",
     invalidKey: "API key is invalid or revoked",
-    fetchFailed: "Fetch failed",
+    fetchFailed: "Fetch Failed",
     settingsTitle: "Token Usage Settings",
     settingsMessage: "These choices are saved in Scriptable Keychain.",
     welcomeTitle: "Welcome to Token Usage",
     welcomeMessage: "Choose how this script updates itself. Auto-update checks GitHub releases at most once per day, backs up the current script, then installs verified updates.",
-    refreshCompleteTitle: "Refresh complete",
+    refreshCompleteTitle: "Refresh Complete",
     refreshCompleteMessage: "Latest usage has been fetched and cached.",
     preview: "Preview",
-    currentVersion: "Version",
+    currentVersion: "Current Version",
     language: "Language",
     appearance: "Appearance",
-    changeKey: "Change API key",
-    checkUpdates: "Check for updates",
-    updateMode: "Script updates",
-    autoUpdate: "Auto-update",
-    manualUpdate: "Manual checks",
+    changeKey: "Change API Key",
+    checkUpdates: "Check For Updates",
+    updateMode: "Script Updates",
+    autoUpdate: "Auto-Update",
+    manualUpdate: "Manual Checks",
     days: "Days",
-    topList: "Large list",
+    topList: "Large List",
     system: "System",
     english: "English",
     chinese: "Chinese",
-    agentClients: "Agent clients",
+    agentClients: "Agent Clients",
     models: "Models",
     light: "Light",
     dark: "Dark",
     save: "Save",
     cancel: "Cancel",
-    keyPromptTitle: "Change API key",
+    keyPromptTitle: "Change API Key",
     keyPromptMessage: "Enter a new vbu_ API key. The key is stored only in Scriptable Keychain.",
     newApiKey: "vbu_...",
-    keyUpdatedTitle: "API key updated",
+    keyUpdatedTitle: "API Key Updated",
     keyUpdatedMessage: "The new API key has been saved. Refresh the widget to fetch latest usage.",
     invalidKeyInput: "Please enter a valid vbu_ API key.",
-    checkingUpdates: "Checking for updates...",
-    updateAvailableTitle: "Update available",
+    checkingUpdates: "Checking For Updates...",
+    updateAvailableTitle: "Update Available",
     updateAvailableMessage: "Version {version} is available. Current version: {current}.",
-    installUpdate: "Install update",
+    installUpdate: "Install Update",
     later: "Later",
-    updateInstalledTitle: "Update installed",
+    updateInstalledTitle: "Update Installed",
     updateInstalledMessage: "Updated to {version}. The next run will use the new script. Backup: {backup}",
-    upToDateTitle: "Already up to date",
+    upToDateTitle: "Already Up To Date",
     upToDateMessage: "You are running the latest version: {version}.",
-    updateFailedTitle: "Update failed",
+    updateFailedTitle: "Update Failed",
     updateFailedMessage: "{message}",
     updateAssetMissing: "Release asset is missing.",
     updateValidationFailed: "Downloaded script did not pass validation.",
@@ -1002,10 +1002,12 @@ function tokenMixRailImage(parts, width, height) {
   ctx.setFont(Font.semiboldSystemFont(8));
   ctx.setTextColor(COLORS.drawFaint);
 
+  const total = parts.reduce((sum, p) => sum + Math.max(0, number(p.value)), 0);
   const labels = parts.filter(p => p.label && p.value > 0).slice(0, 4);
   let labelX = 0;
   labels.forEach((part) => {
-    const textWidth = Math.min(76, Math.max(18, part.label.length * 6.2));
+    const label = `${part.label} ${formatPercent(percentOf(part.value, total))}`;
+    const textWidth = Math.min(82, Math.max(26, label.length * 5.5));
     const dot = new Path();
     dot.addRoundedRect(new Rect(labelX, 2.5, 5, 5), 2.5, 2.5);
     ctx.addPath(dot);
@@ -1013,7 +1015,7 @@ function tokenMixRailImage(parts, width, height) {
     ctx.fillPath();
 
     ctx.setTextColor(COLORS.drawFaint);
-    ctx.drawTextInRect(part.label, new Rect(labelX + 8, 0, textWidth, 11));
+    ctx.drawTextInRect(label, new Rect(labelX + 8, 0, textWidth, 11));
     labelX += 8 + textWidth + 9;
   });
 
@@ -1421,17 +1423,20 @@ function addTopList(parent, entries, limit, kind) {
 }
 
 function addInsightStrip(parent, summary, days) {
-  const row = parent.addStack();
+  const outer = parent.addStack();
+  outer.layoutHorizontally();
+  outer.addSpacer();
+  const row = outer.addStack();
   row.layoutHorizontally();
   row.spacing = 6;
-  row.addSpacer();
+  row.size = new Size(LAYOUT.largeContentWidth, 34);
   const cacheShare = formatPercent(percentOf(summary.cached, summary.totalTokens));
   const dailyCost = formatCostShort(summary.cost / Math.max(1, clampDays(days)));
   const tokenRate = formatTokenRate(summary.totalTokens, summary.activeSeconds);
   addInsight(row, t("cacheShare"), cacheShare, COLORS.cache);
   addInsight(row, t("dailyCost"), `${dailyCost}/d`, COLORS.green);
   addInsight(row, t("tokenRate"), tokenRate, COLORS.blue);
-  row.addSpacer();
+  outer.addSpacer();
 }
 
 function addInsight(parent, label, value, color) {
