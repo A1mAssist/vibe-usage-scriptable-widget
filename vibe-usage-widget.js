@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.1.2",
+  version: "0.1.3",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
