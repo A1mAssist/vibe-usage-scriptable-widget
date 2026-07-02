@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.1.1",
+  version: "0.1.2",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -1105,15 +1105,17 @@ function tokenMixRailImage(parts, width, height) {
   ctx.opaque = false;
   ctx.respectScreenScale = true;
 
-  ctx.setFont(Font.semiboldSystemFont(8));
+  ctx.setFont(Font.semiboldSystemFont(7.5));
   ctx.setTextColor(COLORS.drawFaint);
 
   const total = parts.reduce((sum, p) => sum + Math.max(0, number(p.value)), 0);
   const labels = parts.filter(p => p.label && p.value > 0).slice(0, 4);
+  const labelTexts = labels.map(part => `${part.label} ${formatPercent(percentOf(part.value, total))}`);
+  const dotGap = 8;
+  const itemGap = 6;
+  const textWidths = fitLegendTextWidths(labelTexts, width, dotGap, itemGap);
   let labelX = 0;
-  labels.forEach((part) => {
-    const label = `${part.label} ${formatPercent(percentOf(part.value, total))}`;
-    const textWidth = Math.min(82, Math.max(26, label.length * 5.5));
+  labels.forEach((part, index) => {
     const dot = new Path();
     dot.addRoundedRect(new Rect(labelX, 2.5, 5, 5), 2.5, 2.5);
     ctx.addPath(dot);
@@ -1121,13 +1123,34 @@ function tokenMixRailImage(parts, width, height) {
     ctx.fillPath();
 
     ctx.setTextColor(COLORS.drawFaint);
-    ctx.drawTextInRect(label, new Rect(labelX + 8, 0, textWidth, 11));
-    labelX += 8 + textWidth + 9;
+    ctx.drawTextInRect(labelTexts[index], new Rect(labelX + dotGap, 0, textWidths[index], 11));
+    labelX += dotGap + textWidths[index] + itemGap;
   });
 
   const railY = Math.max(15, height - 13);
   const railH = Math.min(13, height - railY);
   return overlayRailImage(ctx, parts, width, railY, railH, 4);
+}
+
+function fitLegendTextWidths(texts, width, dotGap, itemGap) {
+  if (texts.length === 0) return [];
+  const minWidth = 24;
+  const available = Math.max(
+    minWidth * texts.length,
+    width - dotGap * texts.length - itemGap * Math.max(0, texts.length - 1),
+  );
+  const estimates = texts.map(text => Math.max(minWidth, text.length * 5.8));
+  const total = estimates.reduce((sum, value) => sum + value, 0);
+  if (total <= available) return estimates;
+
+  const flexibleTotal = estimates.reduce((sum, value) => sum + Math.max(0, value - minWidth), 0);
+  if (flexibleTotal <= 0) return texts.map(() => available / texts.length);
+
+  const overflow = total - available;
+  return estimates.map(value => {
+    const flexible = Math.max(0, value - minWidth);
+    return Math.max(minWidth, value - overflow * flexible / flexibleTotal);
+  });
 }
 
 function overlayRailImage(ctx, parts, width, y, height, gap) {
