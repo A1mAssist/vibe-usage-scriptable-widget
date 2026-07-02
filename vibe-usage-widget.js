@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.0.7",
+  version: "0.0.8",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -851,8 +851,8 @@ function formatDurationMetric(seconds) {
   if (h < 240) return `${h}h`;
   const days = Math.floor(h / 24);
   const hours = h % 24;
-  const dayHour = `${days}d${hours}h`;
-  if (dayHour.length <= 6) return dayHour;
+  const dayHour = `${days}d ${hours}h`;
+  if (dayHour.length <= 7) return dayHour;
   return `${trim1(s / 86400)}d`;
 }
 
