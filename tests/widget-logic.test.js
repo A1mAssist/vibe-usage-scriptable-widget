@@ -58,6 +58,7 @@ class DrawContext {
 }
 
 const Font = {
+  semiboldMonospacedSystemFont: size => ({ size }),
   semiboldSystemFont: size => ({ size }),
 };
 
@@ -84,12 +85,15 @@ globalThis.__widgetTestExports = {
   formatDurationMetric,
   formatDurationShort,
   formatPercent,
+  formatSharePercent,
   formatTokenRate,
   formatTokens,
   insightSummary,
   isVersionNewer,
+  middleEllipsize,
   normalizeApiKey,
   normalizeApiUrl,
+  normalizeLargeSummary,
   normalizeVersion,
   noUsageTitle,
   parseConfigInput,
@@ -98,6 +102,8 @@ globalThis.__widgetTestExports = {
   shouldCheckUpdate,
   summarize,
   tokenMixRailImage,
+  topListSummary,
+  topListRowImage,
   validateScriptUpdate,
 };
 `),
@@ -129,6 +135,7 @@ assert.deepEqual(plain(widget.parseConfigInput(JSON.stringify({
   language: "zh",
   theme: "dark",
   topList: "model",
+  largeSummary: ["sessions", "bad", "topShare", "sessions"],
   updateMode: "auto",
   oobeComplete: true,
 }))), {
@@ -138,6 +145,7 @@ assert.deepEqual(plain(widget.parseConfigInput(JSON.stringify({
   language: "zh",
   theme: "dark",
   topList: "model",
+  largeSummary: ["sessions", "topShare"],
   updateMode: "auto",
   oobeComplete: true,
 });
@@ -154,11 +162,15 @@ assert.equal(widget.formatDurationMetric(12 * 86400 + 8 * 3600), "12d 8h");
 assert.equal(widget.formatDurationMetric(99 * 3600 + 30 * 60), "99.5h");
 assert.equal(widget.formatPercent(widget.percentOf(119500000, 130000000)), "92%");
 assert.equal(widget.formatPercent(widget.percentOf(1, 1000)), "0.1%");
+assert.equal(widget.formatSharePercent(99.93), "99.9%");
 assert.equal(widget.percentOf(1, 0), 0);
 assert.equal(widget.formatTokenRate(5400000, 3600), "5.4M/hr");
 assert.equal(widget.formatTokenRate(5400000, 0), "-/hr");
 assert.equal(widget.noUsageTitle(1), "No Usage Today");
 assert.equal(widget.noUsageTitle(7), "No Usage In This Window");
+assert.equal(widget.middleEllipsize("claude-opus-4-8", 14), "claude-o…s-4-8");
+assert.equal(widget.middleEllipsize("Codex", 14), "Codex");
+assert.deepEqual(plain(widget.normalizeLargeSummary(["topShare", "sessions", "topShare"])), ["topShare", "sessions"]);
 assert.equal(widget.insightSummary({ cached: 0, totalTokens: 0, cost: 0, activeSeconds: 0 }, 1), "Cache 0% · $0.00/d · -/hr");
 
 const now = Date.now();
@@ -209,6 +221,9 @@ assert.equal(summary.activeSeconds, 1200);
 assert.equal(summary.topSources[0][0], "claude-code");
 assert.equal(summary.topModels[0][0], "claude-sonnet");
 assert.equal(widget.insightSummary(summary, 7), "Cache 4.3% · $0.05/d · 1.8K/hr");
+assert.equal(widget.topListSummary(summary, summary.topSources), "1 Session · Avg/Session 585 · Top Share 68%");
+assert.equal(widget.topListSummary(summary, summary.topSources, ["avgTokensPerSession"]), "Avg/Session 585");
+assert.equal(widget.topListSummary(summary, summary.topSources, []), "");
 
 const request = {
   apiKey: "vbu_one",
@@ -236,5 +251,6 @@ assert.equal(widget.validateScriptUpdate(source), true);
 assert.equal(widget.validateScriptUpdate("alert('nope')"), false);
 assert.deepEqual(widget.segmentChipsImage([{ value: 0 }], 124, 8, 3), { type: "image" });
 assert.deepEqual(widget.tokenMixRailImage([{ label: "In", value: 0 }], 291, 22), { type: "image" });
+assert.deepEqual(widget.topListRowImage("claude-opus-4-8", { tokens: 694100, cost: 0.81 }, 875900000, new Color("#5ca7ff"), 300, 18), { type: "image" });
 
 console.log("widget logic smoke tests passed");

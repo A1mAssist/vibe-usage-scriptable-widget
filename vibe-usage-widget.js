@@ -18,9 +18,12 @@ const DEFAULT_SETTINGS = {
   language: "auto",
   theme: "auto",
   topList: "source",
+  largeSummary: ["sessions", "avgTokensPerSession", "topShare"],
   updateMode: null,
   oobeComplete: false,
 };
+
+const LARGE_SUMMARY_METRICS = ["sessions", "avgTokensPerSession", "topShare"];
 
 const SOURCE_LABELS = {
   "claude-code": "Claude",
@@ -66,6 +69,13 @@ const I18N = {
     tokenRate: "Token Rate",
     topSources: "Top Sources",
     topModels: "Top Models",
+    session: "Session",
+    sessions: "Sessions",
+    avgPerSessionShort: "Avg/Session",
+    avgTokensPerSession: "Avg Token/Session",
+    topShare: "Top Share",
+    largeSummary: "Large Summary",
+    done: "Done",
     lastDays: "Last {days} Days",
     updated: "Updated {time}",
     yesterday: "Yesterday",
@@ -166,6 +176,13 @@ const I18N = {
     tokenRate: "Token 速率",
     topSources: "主要来源",
     topModels: "主要模型",
+    session: "会话",
+    sessions: "会话",
+    avgPerSessionShort: "均值/会话",
+    avgTokensPerSession: "平均 Token/会话",
+    topShare: "最高占比",
+    largeSummary: "大号摘要",
+    done: "完成",
     lastDays: "近 {days} 天",
     updated: "{time} 更新",
     yesterday: "昨天",
@@ -287,6 +304,7 @@ function normalizeConfig(config) {
   const language = ["auto", "en", "zh"].includes(c.language) ? c.language : DEFAULT_SETTINGS.language;
   const theme = ["auto", "light", "dark"].includes(c.theme) ? c.theme : DEFAULT_SETTINGS.theme;
   const topList = ["source", "model"].includes(c.topList) ? c.topList : DEFAULT_SETTINGS.topList;
+  const largeSummary = normalizeLargeSummary(c.largeSummary);
   const updateMode = isUpdateMode(c.updateMode) ? c.updateMode : DEFAULT_SETTINGS.updateMode;
   const lastUpdateCheckAt = Number.isFinite(Number(c.lastUpdateCheckAt)) ? Number(c.lastUpdateCheckAt) : 0;
   return {
@@ -296,6 +314,7 @@ function normalizeConfig(config) {
     language,
     theme,
     topList,
+    largeSummary,
     updateMode,
     oobeComplete: Boolean(c.oobeComplete),
     lastUpdateCheckAt,
@@ -340,6 +359,32 @@ function themeName(value) {
 function topListName(value) {
   if (value === "model") return t("models");
   return t("agentClients");
+}
+
+function normalizeLargeSummary(value, fallback = DEFAULT_SETTINGS.largeSummary) {
+  if (!Array.isArray(value)) return [...fallback];
+  const seen = new Set();
+  const out = [];
+  for (const item of value) {
+    if (LARGE_SUMMARY_METRICS.includes(item) && !seen.has(item)) {
+      seen.add(item);
+      out.push(item);
+    }
+  }
+  return out;
+}
+
+function largeSummaryMetricName(metric) {
+  if (metric === "sessions") return t("sessions");
+  if (metric === "avgTokensPerSession") return t("avgTokensPerSession");
+  if (metric === "topShare") return t("topShare");
+  return metric;
+}
+
+function largeSummaryName(metrics) {
+  const selected = normalizeLargeSummary(metrics, []);
+  if (selected.length === 0) return t("none");
+  return selected.map(largeSummaryMetricName).join(" / ");
 }
 
 function updateModeName(value) {
@@ -491,6 +536,7 @@ function parseConfigInput(raw) {
         language: parsed.language || DEFAULT_SETTINGS.language,
         theme: parsed.theme || DEFAULT_SETTINGS.theme,
         topList: parsed.topList || DEFAULT_SETTINGS.topList,
+        largeSummary: normalizeLargeSummary(parsed.largeSummary),
         updateMode: isUpdateMode(parsed.updateMode) ? parsed.updateMode : DEFAULT_SETTINGS.updateMode,
         oobeComplete: Boolean(parsed.oobeComplete),
       };
@@ -926,6 +972,12 @@ function formatPercent(value) {
   return "0%";
 }
 
+function formatSharePercent(value) {
+  const n = Math.max(0, Math.min(100, number(value)));
+  if (n >= 99 && n < 100) return `${trim1(Math.floor(n * 10) / 10)}%`;
+  return formatPercent(n);
+}
+
 function percentOf(value, total) {
   const base = number(total);
   if (base <= 0) return 0;
@@ -943,6 +995,23 @@ function insightSummary(summary, days) {
   const dailyCost = formatCostShort(summary.cost / Math.max(1, clampDays(days)));
   const tokenRate = formatTokenRate(summary.totalTokens, summary.activeSeconds);
   return `${t("cache")} ${cacheShare} · ${dailyCost}/d · ${tokenRate}`;
+}
+
+function topListSummary(summary, entries, metrics) {
+  const selected = normalizeLargeSummary(metrics, DEFAULT_SETTINGS.largeSummary);
+  if (selected.length === 0) return "";
+
+  const sessionCount = Math.max(0, Math.round(number(summary.sessions)));
+  const sessionLabel = sessionCount === 1 ? t("session") : t("sessions");
+  const avg = sessionCount > 0 ? formatTokens(number(summary.totalTokens) / sessionCount) : "-";
+  const topTokens = entries?.[0]?.[1]?.tokens || 0;
+  const topShare = formatSharePercent(percentOf(topTokens, summary.totalTokens));
+  const items = {
+    sessions: `${sessionCount} ${sessionLabel}`,
+    avgTokensPerSession: `${t("avgPerSessionShort")} ${avg}`,
+    topShare: `${t("topShare")} ${topShare}`,
+  };
+  return selected.map(metric => items[metric]).filter(Boolean).join(" · ");
 }
 
 function noUsageTitle(days) {
@@ -1279,39 +1348,6 @@ function addMetric(stack, label, value, color, options = {}) {
   }
 }
 
-function addSourceRow(parent, label, item, maxTokens, color) {
-  const row = parent.addStack();
-  row.layoutHorizontally();
-  row.centerAlignContent();
-  row.spacing = 6;
-
-  const name = row.addText(label);
-  name.font = Font.semiboldSystemFont(10);
-  name.textColor = COLORS.muted;
-  name.lineLimit = 1;
-  name.minimumScaleFactor = 0.7;
-  name.size = new Size(58, 0);
-
-  const pct = maxTokens > 0 ? item.tokens / maxTokens : 0;
-  const img = row.addImage(progressImage(pct, 82, 6, color));
-  img.imageSize = new Size(82, 6);
-
-  row.addSpacer();
-
-  const value = row.addText(formatTokens(item.tokens));
-  value.font = Font.semiboldMonospacedSystemFont(10);
-  value.textColor = COLORS.text;
-  value.lineLimit = 1;
-  value.size = new Size(46, 0);
-
-  const cost = row.addText(formatCostShort(item.cost));
-  cost.font = Font.semiboldMonospacedSystemFont(10);
-  cost.textColor = COLORS.green;
-  cost.lineLimit = 1;
-  cost.minimumScaleFactor = 0.7;
-  cost.size = new Size(50, 0);
-}
-
 function buildWidget(payload) {
   const widget = new ListWidget();
   if (ACTIVE_THEME === "auto") {
@@ -1560,11 +1596,23 @@ function buildLargeWidget(widget, payload) {
 
   widget.addSpacer(14);
   const topList = payload.topList === "model" ? "model" : "source";
+  const topEntries = topList === "model" ? s.topModels : s.topSources;
   const sourcesTitle = widget.addText(topList === "model" ? t("topModels") : t("topSources"));
   sourcesTitle.font = Font.semiboldSystemFont(11);
   sourcesTitle.textColor = COLORS.muted;
-  widget.addSpacer(7);
-  addTopList(widget, topList === "model" ? s.topModels : s.topSources, 4, topList);
+  const summaryText = topListSummary(s, topEntries, payload.largeSummary);
+  if (summaryText) {
+    widget.addSpacer(2);
+    const topMeta = widget.addText(summaryText);
+    topMeta.font = Font.semiboldSystemFont(8.5);
+    topMeta.textColor = COLORS.faint;
+    topMeta.lineLimit = 1;
+    topMeta.minimumScaleFactor = 0.75;
+    widget.addSpacer(6);
+  } else {
+    widget.addSpacer(7);
+  }
+  addTopList(widget, topEntries, 4, topList);
   return widget;
 }
 
@@ -1582,7 +1630,64 @@ function addTopList(parent, entries, limit, kind) {
   rows.layoutVertically();
   rows.spacing = limit > 2 ? 7 : 5;
   const palette = [COLORS.green, COLORS.blue, COLORS.purple, COLORS.cache];
-  visible.forEach(([name, item], idx) => addSourceRow(rows, topItemLabel(name, kind), item, max, palette[idx % palette.length]));
+  visible.forEach(([name, item], idx) => {
+    const row = rows.addImage(topListRowImage(topItemLabel(name, kind), item, max, palette[idx % palette.length], LAYOUT.largeContentWidth, 18));
+    row.imageSize = new Size(LAYOUT.largeContentWidth, 18);
+  });
+}
+
+function topListRowImage(label, item, maxTokens, color, width, height) {
+  const ctx = new DrawContext();
+  ctx.size = new Size(width, height);
+  ctx.opaque = false;
+  ctx.respectScreenScale = true;
+
+  const labelX = 0;
+  const labelW = 100;
+  const barX = 112;
+  const barW = 74;
+  const tokenX = 198;
+  const tokenW = 50;
+  const costX = 254;
+  const costW = width - costX;
+  const barH = 6;
+  const barY = Math.round((height - barH) / 2);
+  const pct = maxTokens > 0 ? number(item.tokens) / maxTokens : 0;
+
+  ctx.setFont(Font.semiboldSystemFont(10));
+  ctx.setTextColor(COLORS.muted);
+  ctx.drawTextInRect(middleEllipsize(label, 14), new Rect(labelX, 1, labelW, height - 1));
+
+  const track = new Path();
+  track.addRoundedRect(new Rect(barX, barY, barW, barH), barH / 2, barH / 2);
+  ctx.addPath(track);
+  ctx.setFillColor(COLORS.track);
+  ctx.fillPath();
+
+  const fill = new Path();
+  fill.addRoundedRect(new Rect(barX, barY, Math.max(barH, barW * Math.max(0, Math.min(1, pct))), barH), barH / 2, barH / 2);
+  ctx.addPath(fill);
+  ctx.setFillColor(color);
+  ctx.fillPath();
+
+  ctx.setFont(Font.semiboldMonospacedSystemFont(10));
+  ctx.setTextColor(COLORS.text);
+  ctx.drawTextInRect(formatTokens(number(item.tokens)), new Rect(tokenX, 1, tokenW, height - 1));
+  ctx.setTextColor(COLORS.green);
+  ctx.drawTextInRect(formatCostShort(number(item.cost)), new Rect(costX, 1, costW, height - 1));
+
+  return ctx.getImage();
+}
+
+function middleEllipsize(value, maxChars) {
+  const text = String(value || "Unknown");
+  const limit = Math.max(1, Math.floor(number(maxChars)));
+  if (text.length <= limit) return text;
+  if (limit <= 2) return text.slice(0, limit);
+  const keep = limit - 1;
+  const head = Math.ceil(keep * 0.58);
+  const tail = keep - head;
+  return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
 }
 
 function addInsightStrip(parent, summary, days) {
@@ -1736,6 +1841,28 @@ async function chooseTopList(current) {
   return current;
 }
 
+async function chooseLargeSummary(current) {
+  let selected = normalizeLargeSummary(current, []);
+  while (true) {
+    const a = new Alert();
+    a.title = t("largeSummary");
+    a.message = `${t("largeSummary")}: ${largeSummaryName(selected)}`;
+    LARGE_SUMMARY_METRICS.forEach(metric => {
+      const enabled = selected.includes(metric);
+      a.addAction(`${enabled ? "✓" : "○"} ${largeSummaryMetricName(metric)}`);
+    });
+    a.addCancelAction(t("done"));
+    const choice = await a.presentSheet();
+    if (choice < 0) return selected;
+
+    const metric = LARGE_SUMMARY_METRICS[choice];
+    if (!metric) return selected;
+    selected = selected.includes(metric)
+      ? selected.filter(item => item !== metric)
+      : [...selected, metric];
+  }
+}
+
 async function chooseUpdateMode(current) {
   const a = new Alert();
   a.title = t("updateMode");
@@ -1840,10 +1967,11 @@ async function presentDisplaySettings(cfg) {
   while (true) {
     const a = new Alert();
     a.title = t("displaySettings");
-    a.message = `${t("language")}: ${languageName(next.language)}\n${t("appearance")}: ${themeName(next.theme)}\n${t("topList")}: ${topListName(next.topList)}`;
+    a.message = `${t("language")}: ${languageName(next.language)}\n${t("appearance")}: ${themeName(next.theme)}\n${t("topList")}: ${topListName(next.topList)}\n${t("largeSummary")}: ${largeSummaryName(next.largeSummary)}`;
     a.addAction(t("language"));
     a.addAction(t("appearance"));
     a.addAction(t("topList"));
+    a.addAction(t("largeSummary"));
     a.addCancelAction(t("cancel"));
     const choice = await a.presentSheet();
     if (choice === 0) {
@@ -1858,6 +1986,11 @@ async function presentDisplaySettings(cfg) {
     }
     if (choice === 2) {
       next = applyRuntimeSettings({ ...next, topList: await chooseTopList(next.topList) });
+      saveConfig(next);
+      continue;
+    }
+    if (choice === 3) {
+      next = applyRuntimeSettings({ ...next, largeSummary: await chooseLargeSummary(next.largeSummary) });
       saveConfig(next);
       continue;
     }
@@ -1936,6 +2069,7 @@ async function presentDiagnostics(cfg) {
     `${t("scriptName")}: ${Script.name()}`,
     `${t("days")}: ${cfg.days}`,
     `${t("topList")}: ${topListName(cfg.topList)}`,
+    `${t("largeSummary")}: ${largeSummaryName(cfg.largeSummary)}`,
     `${t("updateMode")}: ${updateModeName(cfg.updateMode)}`,
     `${t("lastUpdateCheck")}: ${cfg.lastUpdateCheckAt ? agoText(cfg.lastUpdateCheckAt) : t("none")}`,
     `API URL: ${cfg.apiUrl}`,
@@ -1994,6 +2128,7 @@ async function main() {
     apiUrl: normalizeApiUrl(widgetConfig?.apiUrl),
     days: clampDays(widgetConfig?.days || CONFIG.days),
     topList: widgetConfig?.topList || DEFAULT_SETTINGS.topList,
+    largeSummary: normalizeLargeSummary(widgetConfig?.largeSummary),
     updatedAt: Date.now(),
     offline: false,
     summary: null,
@@ -2012,6 +2147,7 @@ async function main() {
         payload = {
           ...cached.payload,
           topList: widgetConfig.topList || DEFAULT_SETTINGS.topList,
+          largeSummary: normalizeLargeSummary(widgetConfig.largeSummary),
           offline: true,
           error: err.message || t("fetchFailed"),
         };
