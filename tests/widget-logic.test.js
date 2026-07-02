@@ -141,7 +141,7 @@ assert.equal(widget.formatTokens(1200000), "1.2M");
 assert.equal(widget.formatDurationShort(3660), "1h 1m");
 assert.equal(widget.formatDurationShort(11 * 86400), "11d 0h");
 assert.equal(widget.formatDurationMetric(23 * 3600 + 35 * 60), "23.6h");
-assert.equal(widget.formatDurationMetric(5 * 3600 + 7 * 60), "5h7m");
+assert.equal(widget.formatDurationMetric(5 * 3600 + 7 * 60), "5h 7m");
 assert.equal(widget.formatDurationMetric(12 * 86400 + 8 * 3600), "12d8h");
 
 const now = Date.now();
