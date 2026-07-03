@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.1.3",
+  version: "0.1.4",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -1628,11 +1628,12 @@ function addTopList(parent, entries, limit, kind) {
   const max = visible[0][1].tokens || 1;
   const rows = parent.addStack();
   rows.layoutVertically();
-  rows.spacing = limit > 2 ? 7 : 5;
+  rows.spacing = limit > 3 ? 5 : 6;
   const palette = [COLORS.green, COLORS.blue, COLORS.purple, COLORS.cache];
   visible.forEach(([name, item], idx) => {
-    const row = rows.addImage(topListRowImage(topItemLabel(name, kind), item, max, palette[idx % palette.length], LAYOUT.largeContentWidth, 18));
-    row.imageSize = new Size(LAYOUT.largeContentWidth, 18);
+    const rowHeight = limit > 3 ? 16 : 18;
+    const row = rows.addImage(topListRowImage(topItemLabel(name, kind), item, max, palette[idx % palette.length], LAYOUT.largeContentWidth, rowHeight));
+    row.imageSize = new Size(LAYOUT.largeContentWidth, rowHeight);
   });
 }
 
@@ -1711,7 +1712,34 @@ function addInsightStrip(parent, summary, days) {
 
 function topItemLabel(name, kind) {
   if (kind === "source") return sourceLabel(name);
-  return name || "Unknown";
+  return modelLabel(name);
+}
+
+function modelLabel(name) {
+  const raw = String(name || "Unknown").trim() || "Unknown";
+  const withoutProvider = raw.replace(/^anthropic[/:]/i, "");
+  if (!/^claude[-_.]/i.test(withoutProvider)) return raw;
+
+  const body = withoutProvider
+    .replace(/^claude[-_.]/i, "")
+    .replace(/[-_.]\d{8}$/i, "")
+    .replace(/[-_.]latest$/i, "")
+    .replace(/[_.]/g, "-")
+    .toLowerCase();
+
+  const legacy = body.match(/^(\d+)-(\d+)-(opus|sonnet|haiku)(?:-.+)?$/i);
+  if (legacy) return `${legacy[3].toLowerCase()}-${legacy[1]}.${legacy[2]}`;
+
+  const legacyMajor = body.match(/^(\d+)-(opus|sonnet|haiku)(?:-.+)?$/i);
+  if (legacyMajor) return `${legacyMajor[2].toLowerCase()}-${legacyMajor[1]}`;
+
+  const family = body.match(/^(opus|sonnet|haiku)-(\d+)(?:-(\d+))?(?:-.+)?$/i);
+  if (family) {
+    const version = family[3] ? `${family[2]}.${family[3]}` : family[2];
+    return `${family[1].toLowerCase()}-${version}`;
+  }
+
+  return body || raw;
 }
 
 function addSetupMessage(parent) {

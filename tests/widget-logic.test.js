@@ -91,6 +91,7 @@ globalThis.__widgetTestExports = {
   insightSummary,
   isVersionNewer,
   middleEllipsize,
+  modelLabel,
   normalizeApiKey,
   normalizeApiUrl,
   normalizeLargeSummary,
@@ -168,7 +169,11 @@ assert.equal(widget.formatTokenRate(5400000, 3600), "5.4M/hr");
 assert.equal(widget.formatTokenRate(5400000, 0), "-/hr");
 assert.equal(widget.noUsageTitle(1), "No Usage Today");
 assert.equal(widget.noUsageTitle(7), "No Usage In This Window");
-assert.equal(widget.middleEllipsize("claude-opus-4-8", 14), "claude-o…s-4-8");
+assert.equal(widget.modelLabel("claude-opus-4-8"), "opus-4.8");
+assert.equal(widget.modelLabel("claude-opus-4.8"), "opus-4.8");
+assert.equal(widget.modelLabel("claude-3-5-sonnet-20241022"), "sonnet-3.5");
+assert.equal(widget.modelLabel("anthropic/claude-haiku-3-5-latest"), "haiku-3.5");
+assert.equal(widget.modelLabel("gpt-5.5"), "gpt-5.5");
 assert.equal(widget.middleEllipsize("Codex", 14), "Codex");
 assert.deepEqual(plain(widget.normalizeLargeSummary(["topShare", "sessions", "topShare"])), ["topShare", "sessions"]);
 assert.equal(widget.insightSummary({ cached: 0, totalTokens: 0, cost: 0, activeSeconds: 0 }, 1), "Cache 0% · $0.00/d · -/hr");
@@ -251,6 +256,6 @@ assert.equal(widget.validateScriptUpdate(source), true);
 assert.equal(widget.validateScriptUpdate("alert('nope')"), false);
 assert.deepEqual(widget.segmentChipsImage([{ value: 0 }], 124, 8, 3), { type: "image" });
 assert.deepEqual(widget.tokenMixRailImage([{ label: "In", value: 0 }], 291, 22), { type: "image" });
-assert.deepEqual(widget.topListRowImage("claude-opus-4-8", { tokens: 694100, cost: 0.81 }, 875900000, new Color("#5ca7ff"), 300, 18), { type: "image" });
+assert.deepEqual(widget.topListRowImage(widget.modelLabel("claude-opus-4-8"), { tokens: 694100, cost: 0.81 }, 875900000, new Color("#5ca7ff"), 300, 18), { type: "image" });
 
 console.log("widget logic smoke tests passed");
