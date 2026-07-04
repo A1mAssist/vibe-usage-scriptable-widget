@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.1.4",
+  version: "0.1.5",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -101,6 +101,9 @@ const I18N = {
     refreshCompleteTitle: "Refresh Complete",
     refreshCompleteMessage: "Latest usage has been fetched and cached.",
     preview: "Preview",
+    small: "Small",
+    medium: "Medium",
+    large: "Large",
     currentVersion: "Current Version",
     language: "Language",
     appearance: "Appearance",
@@ -208,6 +211,9 @@ const I18N = {
     refreshCompleteTitle: "刷新完成",
     refreshCompleteMessage: "最新用量已拉取并缓存。",
     preview: "预览",
+    small: "小号",
+    medium: "中号",
+    large: "大号",
     currentVersion: "版本",
     language: "语言",
     appearance: "外观",
@@ -1348,7 +1354,7 @@ function addMetric(stack, label, value, color, options = {}) {
   }
 }
 
-function buildWidget(payload) {
+function buildWidget(payload, familyOverride) {
   const widget = new ListWidget();
   if (ACTIVE_THEME === "auto") {
     widget.backgroundColor = COLORS.bgTop;
@@ -1360,10 +1366,22 @@ function buildWidget(payload) {
   }
   widget.url = settingsUrl();
 
-  const family = config.widgetFamily || "medium";
+  const family = familyOverride || config.widgetFamily || "medium";
   if (family === "small") return buildSmallWidget(widget, payload);
   if (family === "large") return buildLargeWidget(widget, payload);
   return buildMediumWidget(widget, payload);
+}
+
+function scheduleRefresh(widget) {
+  widget.refreshAfterDate = new Date(Date.now() + CONFIG.refreshMinutes * 60 * 1000);
+  return widget;
+}
+
+async function presentPreviewWidget(payload, family) {
+  const widget = scheduleRefresh(buildWidget(payload, family));
+  if (family === "small") return widget.presentSmall();
+  if (family === "large") return widget.presentLarge();
+  return widget.presentMedium();
 }
 
 function buildMediumWidget(widget, payload) {
@@ -1891,6 +1909,20 @@ async function chooseLargeSummary(current) {
   }
 }
 
+async function choosePreviewFamily() {
+  const a = new Alert();
+  a.title = t("preview");
+  a.addAction(t("small"));
+  a.addAction(t("medium"));
+  a.addAction(t("large"));
+  a.addCancelAction(t("cancel"));
+  const choice = await a.presentSheet();
+  if (choice === 0) return "small";
+  if (choice === 2) return "large";
+  if (choice === 1) return "medium";
+  return null;
+}
+
 async function chooseUpdateMode(current) {
   const a = new Alert();
   a.title = t("updateMode");
@@ -2124,6 +2156,14 @@ async function presentSettingsIfNeeded(widgetConfig) {
     a.addCancelAction(t("cancel"));
     const choice = await a.presentSheet();
 
+    if (choice === 0) {
+      const family = await choosePreviewFamily();
+      if (family) {
+        cfg.previewFamily = family;
+        return cfg;
+      }
+      continue;
+    }
     if (choice === 1) {
       cfg = await presentDataSettings(cfg);
       continue;
@@ -2185,15 +2225,16 @@ async function main() {
     }
   }
 
-  const widget = buildWidget(payload);
-  widget.refreshAfterDate = new Date(Date.now() + CONFIG.refreshMinutes * 60 * 1000);
+  const previewFamily = widgetConfig?.previewFamily;
+  if (widgetConfig) delete widgetConfig.previewFamily;
+  const widget = scheduleRefresh(buildWidget(payload));
 
   if (config.runsInWidget) {
     Script.setWidget(widget);
   } else if (isRefreshRun()) {
     await presentRefreshResult(payload);
   } else {
-    await widget.presentMedium();
+    await presentPreviewWidget(payload, previewFamily || "medium");
   }
   Script.complete();
 }
