@@ -103,6 +103,7 @@ globalThis.__widgetTestExports = {
   shouldCheckUpdate,
   summarize,
   tokenMixRailImage,
+  topEntriesFor,
   topListSummary,
   topListRowImage,
   validateScriptUpdate,
@@ -136,6 +137,7 @@ assert.deepEqual(plain(widget.parseConfigInput(JSON.stringify({
   language: "zh",
   theme: "dark",
   topList: "model",
+  topSort: "cost",
   largeSummary: ["sessions", "bad", "topShare", "sessions"],
   updateMode: "auto",
   oobeComplete: true,
@@ -146,6 +148,7 @@ assert.deepEqual(plain(widget.parseConfigInput(JSON.stringify({
   language: "zh",
   theme: "dark",
   topList: "model",
+  topSort: "cost",
   largeSummary: ["sessions", "topShare"],
   updateMode: "auto",
   oobeComplete: true,
@@ -225,6 +228,8 @@ assert.equal(summary.sessions, 1);
 assert.equal(summary.activeSeconds, 1200);
 assert.equal(summary.topSources[0][0], "claude-code");
 assert.equal(summary.topModels[0][0], "claude-sonnet");
+assert.equal(summary.topSourcesByCost[0][0], "claude-code");
+assert.equal(widget.topEntriesFor(summary, "source", "cost")[0][0], "claude-code");
 assert.equal(widget.insightSummary(summary, 7), "Cache 4.3% · $0.05/d · 1.8K/hr");
 assert.equal(widget.topListSummary(summary, summary.topSources), "1 Session · Avg/Session 585 · Top Share 68%");
 assert.equal(widget.topListSummary(summary, summary.topSources, ["avgTokensPerSession"]), "Avg/Session 585");

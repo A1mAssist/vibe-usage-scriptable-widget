@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.1.5",
+  version: "0.1.6",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
   language: "auto",
   theme: "auto",
   topList: "source",
+  topSort: "tokens",
   largeSummary: ["sessions", "avgTokensPerSession", "topShare"],
   updateMode: null,
   oobeComplete: false,
@@ -82,6 +83,8 @@ const I18N = {
     dayBeforeYesterday: "Day Before Yesterday",
     usingCachedData: "Using Cached Data",
     noData: "No data yet. Run vibe-usage sync on your computer first.",
+    noCache: "No cached data for this API key and day range.",
+    networkError: "Network request failed. Check connection or try manual refresh.",
     noUsageToday: "No Usage Today",
     noUsageWindow: "No Usage In This Window",
     noUsageHint: "Try a wider day range, or sync Vibe Usage on your computer.",
@@ -119,11 +122,17 @@ const I18N = {
     manualUpdate: "Manual Checks",
     days: "Days",
     topList: "Large List",
+    topSort: "Large Sort",
     system: "System",
     english: "English",
     chinese: "Chinese",
     agentClients: "Agent Clients",
     models: "Models",
+    sortByTokens: "Sort By Tokens",
+    sortByCost: "Sort By Cost",
+    clearCache: "Clear Cache",
+    cacheClearedTitle: "Cache Cleared",
+    cacheClearedMessage: "Cached widget data has been removed.",
     light: "Light",
     dark: "Dark",
     save: "Save",
@@ -154,6 +163,8 @@ const I18N = {
     diagnosticsTitle: "Diagnostics",
     apiKeySaved: "API Key Saved",
     cacheStatus: "Cache",
+    backupCount: "Backups",
+    scriptWritable: "Script Writable",
     scriptName: "Script",
     lastUpdateCheck: "Last Update Check",
     yes: "Yes",
@@ -192,6 +203,8 @@ const I18N = {
     dayBeforeYesterday: "前天",
     usingCachedData: "正在使用缓存数据",
     noData: "暂无数据。先在电脑上运行 vibe-usage 同步。",
+    noCache: "当前 API Key 和天数没有匹配缓存。",
+    networkError: "网络请求失败。请检查连接或手动刷新。",
     noUsageToday: "今天暂无用量",
     noUsageWindow: "当前时间范围暂无用量",
     noUsageHint: "可以扩大统计天数，或先在电脑上同步 Vibe Usage。",
@@ -229,11 +242,17 @@ const I18N = {
     manualUpdate: "手动检查",
     days: "天数",
     topList: "大号列表",
+    topSort: "大号排序",
     system: "跟随系统",
     english: "English",
     chinese: "中文",
     agentClients: "Agent 客户端",
     models: "模型",
+    sortByTokens: "按 Token 排序",
+    sortByCost: "按费用排序",
+    clearCache: "清除缓存",
+    cacheClearedTitle: "缓存已清除",
+    cacheClearedMessage: "小组件缓存数据已删除。",
     light: "浅色",
     dark: "深色",
     save: "保存",
@@ -264,6 +283,8 @@ const I18N = {
     diagnosticsTitle: "诊断信息",
     apiKeySaved: "API Key 已保存",
     cacheStatus: "缓存",
+    backupCount: "备份数量",
+    scriptWritable: "脚本可写",
     scriptName: "脚本",
     lastUpdateCheck: "上次检查更新",
     yes: "是",
@@ -310,6 +331,7 @@ function normalizeConfig(config) {
   const language = ["auto", "en", "zh"].includes(c.language) ? c.language : DEFAULT_SETTINGS.language;
   const theme = ["auto", "light", "dark"].includes(c.theme) ? c.theme : DEFAULT_SETTINGS.theme;
   const topList = ["source", "model"].includes(c.topList) ? c.topList : DEFAULT_SETTINGS.topList;
+  const topSort = ["tokens", "cost"].includes(c.topSort) ? c.topSort : DEFAULT_SETTINGS.topSort;
   const largeSummary = normalizeLargeSummary(c.largeSummary);
   const updateMode = isUpdateMode(c.updateMode) ? c.updateMode : DEFAULT_SETTINGS.updateMode;
   const lastUpdateCheckAt = Number.isFinite(Number(c.lastUpdateCheckAt)) ? Number(c.lastUpdateCheckAt) : 0;
@@ -320,6 +342,7 @@ function normalizeConfig(config) {
     language,
     theme,
     topList,
+    topSort,
     largeSummary,
     updateMode,
     oobeComplete: Boolean(c.oobeComplete),
@@ -365,6 +388,11 @@ function themeName(value) {
 function topListName(value) {
   if (value === "model") return t("models");
   return t("agentClients");
+}
+
+function topSortName(value) {
+  if (value === "cost") return t("sortByCost");
+  return t("sortByTokens");
 }
 
 function normalizeLargeSummary(value, fallback = DEFAULT_SETTINGS.largeSummary) {
@@ -542,6 +570,7 @@ function parseConfigInput(raw) {
         language: parsed.language || DEFAULT_SETTINGS.language,
         theme: parsed.theme || DEFAULT_SETTINGS.theme,
         topList: parsed.topList || DEFAULT_SETTINGS.topList,
+        topSort: parsed.topSort || DEFAULT_SETTINGS.topSort,
         largeSummary: normalizeLargeSummary(parsed.largeSummary),
         updateMode: isUpdateMode(parsed.updateMode) ? parsed.updateMode : DEFAULT_SETTINGS.updateMode,
         oobeComplete: Boolean(parsed.oobeComplete),
@@ -856,7 +885,9 @@ function summarize(data, days = CONFIG.days) {
 
   totals.totalTokens = totals.input + totals.output + totals.reasoning + totals.cached;
   totals.topSources = topEntries(totals.bySource, "tokens", 4);
-  totals.topModels = topEntries(totals.byModel, "tokens", 3);
+  totals.topSourcesByCost = topEntries(totals.bySource, "cost", 4);
+  totals.topModels = topEntries(totals.byModel, "tokens", 4);
+  totals.topModelsByCost = topEntries(totals.byModel, "cost", 4);
   return totals;
 }
 
@@ -1614,7 +1645,7 @@ function buildLargeWidget(widget, payload) {
 
   widget.addSpacer(14);
   const topList = payload.topList === "model" ? "model" : "source";
-  const topEntries = topList === "model" ? s.topModels : s.topSources;
+  const topEntries = topEntriesFor(s, topList, payload.topSort);
   const sourcesTitle = widget.addText(topList === "model" ? t("topModels") : t("topSources"));
   sourcesTitle.font = Font.semiboldSystemFont(11);
   sourcesTitle.textColor = COLORS.muted;
@@ -1653,6 +1684,11 @@ function addTopList(parent, entries, limit, kind) {
     const row = rows.addImage(topListRowImage(topItemLabel(name, kind), item, max, palette[idx % palette.length], LAYOUT.largeContentWidth, rowHeight));
     row.imageSize = new Size(LAYOUT.largeContentWidth, rowHeight);
   });
+}
+
+function topEntriesFor(summary, kind, sort) {
+  if (kind === "model") return sort === "cost" ? summary.topModelsByCost || summary.topModels : summary.topModels;
+  return sort === "cost" ? summary.topSourcesByCost || summary.topSources : summary.topSources;
 }
 
 function topListRowImage(label, item, maxTokens, color, width, height) {
@@ -1887,6 +1923,18 @@ async function chooseTopList(current) {
   return current;
 }
 
+async function chooseTopSort(current) {
+  const a = new Alert();
+  a.title = t("topSort");
+  a.addAction(t("sortByTokens"));
+  a.addAction(t("sortByCost"));
+  a.addCancelAction(t("cancel"));
+  const choice = await a.presentSheet();
+  if (choice === 1) return "cost";
+  if (choice === 0) return "tokens";
+  return current;
+}
+
 async function chooseLargeSummary(current) {
   let selected = normalizeLargeSummary(current, []);
   while (true) {
@@ -2007,6 +2055,7 @@ async function presentDataSettings(cfg) {
     a.message = `${t("apiKeySaved")}: ${next.apiKey ? t("yes") : t("no")}\n${t("days")}: ${next.days}`;
     a.addAction(t("changeKey"));
     a.addAction(t("days"));
+    a.addAction(t("clearCache"));
     a.addCancelAction(t("cancel"));
     const choice = await a.presentSheet();
     if (choice === 0) {
@@ -2018,6 +2067,11 @@ async function presentDataSettings(cfg) {
       saveConfig(next);
       continue;
     }
+    if (choice === 2) {
+      clearCache();
+      await presentUpdateAlert(t("cacheClearedTitle"), t("cacheClearedMessage"));
+      continue;
+    }
     return next;
   }
 }
@@ -2027,10 +2081,11 @@ async function presentDisplaySettings(cfg) {
   while (true) {
     const a = new Alert();
     a.title = t("displaySettings");
-    a.message = `${t("language")}: ${languageName(next.language)}\n${t("appearance")}: ${themeName(next.theme)}\n${t("topList")}: ${topListName(next.topList)}\n${t("largeSummary")}: ${largeSummaryName(next.largeSummary)}`;
+    a.message = `${t("language")}: ${languageName(next.language)}\n${t("appearance")}: ${themeName(next.theme)}\n${t("topList")}: ${topListName(next.topList)}\n${t("topSort")}: ${topSortName(next.topSort)}\n${t("largeSummary")}: ${largeSummaryName(next.largeSummary)}`;
     a.addAction(t("language"));
     a.addAction(t("appearance"));
     a.addAction(t("topList"));
+    a.addAction(t("topSort"));
     a.addAction(t("largeSummary"));
     a.addCancelAction(t("cancel"));
     const choice = await a.presentSheet();
@@ -2050,6 +2105,11 @@ async function presentDisplaySettings(cfg) {
       continue;
     }
     if (choice === 3) {
+      next = applyRuntimeSettings({ ...next, topSort: await chooseTopSort(next.topSort) });
+      saveConfig(next);
+      continue;
+    }
+    if (choice === 4) {
       next = applyRuntimeSettings({ ...next, largeSummary: await chooseLargeSummary(next.largeSummary) });
       saveConfig(next);
       continue;
@@ -2122,13 +2182,17 @@ async function presentDiagnostics(cfg) {
   const cacheText = cache?.payload?.updatedAt
     ? t("updated", { time: agoText(cache.payload.updatedAt) })
     : t("none");
+  const script = currentScriptFile();
   const a = new Alert();
   a.title = t("diagnosticsTitle");
   a.message = [
     `${t("currentVersion")}: ${CONFIG.version}`,
     `${t("scriptName")}: ${Script.name()}`,
+    `${t("scriptWritable")}: ${script ? t("yes") : t("no")}`,
+    `${t("backupCount")}: ${listScriptBackups().length}`,
     `${t("days")}: ${cfg.days}`,
     `${t("topList")}: ${topListName(cfg.topList)}`,
+    `${t("topSort")}: ${topSortName(cfg.topSort)}`,
     `${t("largeSummary")}: ${largeSummaryName(cfg.largeSummary)}`,
     `${t("updateMode")}: ${updateModeName(cfg.updateMode)}`,
     `${t("lastUpdateCheck")}: ${cfg.lastUpdateCheckAt ? agoText(cfg.lastUpdateCheckAt) : t("none")}`,
@@ -2196,6 +2260,7 @@ async function main() {
     apiUrl: normalizeApiUrl(widgetConfig?.apiUrl),
     days: clampDays(widgetConfig?.days || CONFIG.days),
     topList: widgetConfig?.topList || DEFAULT_SETTINGS.topList,
+    topSort: widgetConfig?.topSort || DEFAULT_SETTINGS.topSort,
     largeSummary: normalizeLargeSummary(widgetConfig?.largeSummary),
     updatedAt: Date.now(),
     offline: false,
@@ -2215,12 +2280,14 @@ async function main() {
         payload = {
           ...cached.payload,
           topList: widgetConfig.topList || DEFAULT_SETTINGS.topList,
+          topSort: widgetConfig.topSort || DEFAULT_SETTINGS.topSort,
           largeSummary: normalizeLargeSummary(widgetConfig.largeSummary),
           offline: true,
           error: err.message || t("fetchFailed"),
         };
       } else {
-        payload.error = err.message || t("fetchFailed");
+        const msg = err.message || t("fetchFailed");
+        payload.error = msg === t("invalidKey") || /^HTTP /.test(msg) ? msg : `${t("networkError")}\n${t("noCache")}`;
       }
     }
   }

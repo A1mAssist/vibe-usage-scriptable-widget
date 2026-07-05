@@ -1,6 +1,6 @@
 # Vibe Usage iPhone 桌面小组件
 
-当前版本：`0.1.5`
+当前版本：`0.1.6`
 
 这是一个用于在 iPhone 桌面或负一屏查看 Vibe Usage 数据的 Scriptable 小组件。它不解析手机本地日志，也不上传任何用量数据，只使用你的 `vbu_...` API Key 读取 Vibe Usage 的只读接口：
 
@@ -91,6 +91,7 @@ cat ~/.vibe-usage/config.json
   "language": "auto",
   "theme": "auto",
   "topList": "source",
+  "topSort": "tokens",
   "updateMode": "manual"
 }
 ```
@@ -118,8 +119,8 @@ cat ~/.vibe-usage/config.json
 设置页包含这些入口：
 
 - 预览：用当前配置预览中号小组件
-- 数据设置：更换 API Key、调整统计天数
-- 显示设置：切换语言、外观、大号列表类型
+- 数据设置：更换 API Key、调整统计天数、清除缓存
+- 显示设置：切换语言、外观、大号列表类型和排序方式
 - 更新设置：检查更新、切换自动/手动更新、恢复脚本备份
 - 诊断信息：查看版本、脚本名、API URL、缓存状态、上次检查更新时间等
 
@@ -127,6 +128,8 @@ cat ~/.vibe-usage/config.json
 
 - Agent 客户端：按 Codex、Claude、Cursor、Gemini 等客户端来源统计
 - 模型：按模型名统计
+
+大号列表可以按 Token 或预估费用排序。
 
 ## 刷新机制
 
@@ -152,10 +155,17 @@ widget.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)
 每次安装新版前，脚本会把当前脚本备份为类似下面的文件：
 
 ```text
-脚本名.backup-v0.1.5-20260704-1810.js
+脚本名.backup-v0.1.6-20260705-1810.js
 ```
 
 如果新版本不符合预期，可以进入“更新设置”里的“恢复备份”恢复最近的脚本备份。恢复也会先备份当前脚本，方便继续回退。
+
+如果自动更新没有生效：
+
+- 确认设置页的“脚本更新”是自动更新。
+- 打开诊断信息，确认脚本可写、备份数量正常。
+- 确认 GitHub Release 里存在名为 `vibe-usage-widget.js` 的资源。
+- 如果 Scriptable 文件在 iCloud，先打开 Scriptable 确认脚本已下载到本机。
 
 ## 缓存与离线
 
