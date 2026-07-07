@@ -1,6 +1,6 @@
 # Vibe Usage iPhone 桌面小组件
 
-当前版本：`0.1.6`
+当前版本：`0.1.7`
 
 这是一个用于在 iPhone 桌面或负一屏查看 Vibe Usage 数据的 Scriptable 小组件。它不解析手机本地日志，也不上传任何用量数据，只使用你的 `vbu_...` API Key 读取 Vibe Usage 的只读接口：
 
@@ -9,6 +9,8 @@ GET https://vibecafe.ai/api/usage?days=7
 ```
 
 数据同步仍由官方 `@vibe-cafe/vibe-usage` CLI 或 Vibe Usage 桌面 app 完成；这个仓库只负责 iPhone 小组件展示、缓存、设置和脚本自更新。
+
+可选：如果你有 Grok/xAI 调用日志，可以把 `grokusage-widget.json` 放到 Scriptable 的 iCloud 文件夹。脚本会把里面的 Grok 用量合并进 Vibe Usage 统计；没有这个文件时不会影响正常使用。
 
 ## 主要功能
 
@@ -98,6 +100,22 @@ cat ~/.vibe-usage/config.json
 
 导入成功后，`vibeusage-widget.json` 会被脚本自动删除，避免旧配置反复覆盖 Keychain。
 
+可选的 `grokusage-widget.json` 可以是数组，也可以是 `{ "entries": [...] }`。每条可以直接保存 xAI response 的 `usage`：
+
+```json
+[
+  {
+    "createdAt": "2026-07-08T10:00:00Z",
+    "model": "grok-4",
+    "usage": {
+      "prompt_tokens": 100,
+      "completion_tokens": 50,
+      "cost_in_usd_ticks": 120000000
+    }
+  }
+]
+```
+
 ## 小组件内容
 
 小号小组件适合快速看总量、费用、活跃时长和更新时间。
@@ -155,7 +173,7 @@ widget.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)
 每次安装新版前，脚本会把当前脚本备份为类似下面的文件：
 
 ```text
-脚本名.backup-v0.1.6-20260705-1810.js
+脚本名.backup-v0.1.7-20260708-1810.js
 ```
 
 如果新版本不符合预期，可以进入“更新设置”里的“恢复备份”恢复最近的脚本备份。恢复也会先备份当前脚本，方便继续回退。

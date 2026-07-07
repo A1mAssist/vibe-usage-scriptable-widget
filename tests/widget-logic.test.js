@@ -90,10 +90,12 @@ globalThis.__widgetTestExports = {
   formatTokens,
   insightSummary,
   isVersionNewer,
+  mergeUsageData,
   middleEllipsize,
   modelLabel,
   normalizeApiKey,
   normalizeApiUrl,
+  normalizeGrokUsage,
   normalizeLargeSummary,
   normalizeVersion,
   noUsageTitle,
@@ -179,6 +181,25 @@ assert.equal(widget.modelLabel("anthropic/claude-haiku-3-5-latest"), "haiku-3.5"
 assert.equal(widget.modelLabel("gpt-5.5"), "gpt-5.5");
 assert.equal(widget.middleEllipsize("Codex", 14), "Codex");
 assert.deepEqual(plain(widget.normalizeLargeSummary(["topShare", "sessions", "topShare"])), ["topShare", "sessions"]);
+assert.deepEqual(plain(widget.normalizeGrokUsage([{
+  createdAt: new Date().toISOString(),
+  model: "grok-4",
+  usage: {
+    prompt_tokens: 100,
+    completion_tokens: 50,
+    prompt_tokens_details: { cached_tokens: 10 },
+    completion_tokens_details: { reasoning_tokens: 5 },
+    cost_in_usd_ticks: 120000000,
+  },
+}], 7).buckets[0]), {
+  source: "grok",
+  model: "grok-4",
+  inputTokens: 100,
+  outputTokens: 50,
+  cachedInputTokens: 10,
+  reasoningOutputTokens: 5,
+  estimatedCost: 0.012,
+});
 assert.equal(widget.insightSummary({ cached: 0, totalTokens: 0, cost: 0, activeSeconds: 0 }, 1), "Cache 0% · $0.00/d · -/hr");
 
 const now = Date.now();
@@ -221,6 +242,12 @@ const summary = widget.summarize({
     },
   ],
 }, 7);
+
+const withGrok = widget.summarize(widget.mergeUsageData({
+  buckets: [{ source: "codex", model: "gpt-5", inputTokens: 10 }],
+}, { buckets: [{ source: "grok", model: "grok-4", inputTokens: 20, estimatedCost: 0.01 }] }), 7);
+assert.equal(withGrok.totalTokens, 30);
+assert.equal(withGrok.topSources[0][0], "grok");
 
 assert.equal(summary.totalTokens, 585);
 assert.equal(summary.cost, 0.32);
