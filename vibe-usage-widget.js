@@ -3,13 +3,12 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.1.7",
+  version: "0.1.6",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
   keychainKey: "vibeusage.widget.config",
   cacheFile: "vibeusage-widget-cache.json",
-  grokUsageFile: "grokusage-widget.json",
   releaseApiUrl: "https://api.github.com/repos/A1mAssist/vibe-usage-scriptable-widget/releases/latest",
   releaseAssetName: "vibe-usage-widget.js",
   updateCheckHours: 24,
@@ -32,7 +31,6 @@ const SOURCE_LABELS = {
   codex: "Codex",
   cursor: "Cursor",
   "gemini-cli": "Gemini",
-  grok: "Grok",
   opencode: "OpenCode",
   openclaw: "OpenClaw",
   "qwen-code": "Qwen",
@@ -44,7 +42,6 @@ const SOURCE_LABELS = {
   cline: "Cline",
   "roo-code": "Roo",
   zcode: "ZCode",
-  xai: "Grok",
 };
 
 let COLORS = buildColors("auto");
@@ -504,18 +501,6 @@ function loadCache() {
   }
 }
 
-function loadGrokUsage(days) {
-  try {
-    const fm = FileManager.iCloud();
-    const path = fm.joinPath(fm.documentsDirectory(), CONFIG.grokUsageFile);
-    if (!fm.fileExists(path)) return null;
-    if (!fm.isFileDownloaded(path)) fm.downloadFileFromiCloud(path);
-    return normalizeGrokUsage(JSON.parse(fm.readString(path)), days);
-  } catch {
-    return null;
-  }
-}
-
 async function bootstrapIfNeeded() {
   const existing = getConfig();
   let raw = "";
@@ -860,62 +845,6 @@ async function presentUpdateAlert(title, message) {
   a.message = message;
   a.addAction(t("ok"));
   await a.presentAlert();
-}
-
-function mergeUsageData(primary, extra) {
-  if (!extra) return primary;
-  return {
-    ...primary,
-    buckets: [...(Array.isArray(primary?.buckets) ? primary.buckets : []), ...(Array.isArray(extra.buckets) ? extra.buckets : [])],
-    sessions: [...(Array.isArray(primary?.sessions) ? primary.sessions : []), ...(Array.isArray(extra.sessions) ? extra.sessions : [])],
-  };
-}
-
-function normalizeGrokUsage(raw, days = CONFIG.days) {
-  const entries = Array.isArray(raw) ? raw : raw?.entries || raw?.responses || raw?.items || raw?.buckets || [];
-  const start = Date.now() - clampDays(days) * 86400 * 1000;
-  const buckets = [];
-  const sessions = [];
-
-  for (const entry of entries) {
-    const ts = grokTimeMs(entry);
-    if (ts != null && ts < start) continue;
-    const bucket = grokBucket(entry);
-    if (bucket) buckets.push(bucket);
-
-    const sessionHash = entry?.sessionHash || entry?.conversationId || entry?.conversation_id;
-    if (sessionHash && ts != null) {
-      sessions.push({ sessionHash: `grok:${sessionHash}`, firstMessageAt: new Date(ts).toISOString(), lastMessageAt: new Date(ts).toISOString(), activeSeconds: 0 });
-    }
-  }
-
-  return { buckets, sessions };
-}
-
-function grokBucket(entry) {
-  const usage = entry?.usage || entry || {};
-  const input = number(usage.inputTokens ?? usage.input_tokens ?? usage.prompt_tokens);
-  const output = number(usage.outputTokens ?? usage.output_tokens ?? usage.completion_tokens);
-  const cached = number(usage.cachedInputTokens ?? usage.cached_input_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? usage.input_tokens_details?.cached_tokens);
-  const reasoning = number(usage.reasoningOutputTokens ?? usage.reasoning_output_tokens ?? usage.completion_tokens_details?.reasoning_tokens ?? usage.output_tokens_details?.reasoning_tokens);
-  const cost = number(entry?.estimatedCost ?? usage.estimatedCost ?? usage.cost_usd ?? usage.cost_in_usd ?? number(usage.cost_in_usd_ticks) / 10000000000);
-  const total = input + output + cached + reasoning;
-  if (total <= 0 && cost <= 0) return null;
-  return {
-    source: entry?.source || "grok",
-    model: entry?.model || usage.model || "grok",
-    inputTokens: input,
-    outputTokens: output,
-    cachedInputTokens: cached,
-    reasoningOutputTokens: reasoning,
-    estimatedCost: cost,
-  };
-}
-
-function grokTimeMs(entry) {
-  const value = entry?.createdAt || entry?.timestamp || entry?.created_at || entry?.created;
-  if (typeof value === "number") return value < 100000000000 ? value * 1000 : value;
-  return parseTimeMs(value);
 }
 
 function summarize(data, days = CONFIG.days) {
@@ -2341,9 +2270,8 @@ async function main() {
 
   if (widgetConfig?.apiKey) {
     try {
-      const days = clampDays(widgetConfig.days || CONFIG.days);
-      const data = mergeUsageData(await fetchUsage(widgetConfig), loadGrokUsage(days));
-      const summary = summarize(data, days);
+      const data = await fetchUsage(widgetConfig);
+      const summary = summarize(data, clampDays(widgetConfig.days || CONFIG.days));
       payload = { ...payload, summary, updatedAt: Date.now() };
       saveCache({ request: cacheRequest(widgetConfig), payload });
     } catch (err) {
