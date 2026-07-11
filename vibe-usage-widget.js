@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.1.6",
+  version: "0.2.0",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -17,9 +17,13 @@ const CONFIG = {
 const DEFAULT_SETTINGS = {
   language: "auto",
   theme: "auto",
+  accent: "blue",
+  privacyMode: false,
+  largeView: "overview",
   topList: "source",
   topSort: "tokens",
   largeSummary: ["sessions", "avgTokensPerSession", "topShare"],
+  monthlyBudget: 0,
   updateMode: null,
   oobeComplete: false,
 };
@@ -44,9 +48,10 @@ const SOURCE_LABELS = {
   zcode: "ZCode",
 };
 
-let COLORS = buildColors("auto");
+let COLORS = buildColors("auto", "blue");
 let ACTIVE_LANGUAGE = "en";
 let ACTIVE_THEME = "auto";
+let ACTIVE_WIDGET_PARAMETER = "";
 
 const LAYOUT = {
   mediumContentWidth: 291,
@@ -70,8 +75,17 @@ const I18N = {
     tokenRate: "Token Rate",
     topSources: "Top Sources",
     topModels: "Top Models",
+    topProjects: "Top Projects",
+    projects: "Projects",
+    project: "Project",
     session: "Session",
     sessions: "Sessions",
+    sessionShort: "S",
+    streak: "Streak",
+    lastActive: "Last Active",
+    activityPulse: "Activity Pulse",
+    noActivityData: "No Activity Data In This Window",
+    now: "Now",
     avgPerSessionShort: "Avg/Session",
     avgTokensPerSession: "Avg Token/Session",
     topShare: "Top Share",
@@ -123,6 +137,17 @@ const I18N = {
     days: "Days",
     topList: "Large List",
     topSort: "Large Sort",
+    largeView: "Large View",
+    overviewView: "Overview",
+    activityView: "Activity",
+    privacyMode: "Privacy Mode",
+    accentColor: "Accent Color",
+    systemBlue: "System Blue",
+    graphite: "Graphite",
+    mint: "Mint",
+    coral: "Coral",
+    enabled: "Enabled",
+    disabled: "Disabled",
     system: "System",
     english: "English",
     chinese: "Chinese",
@@ -130,6 +155,16 @@ const I18N = {
     models: "Models",
     sortByTokens: "Sort By Tokens",
     sortByCost: "Sort By Cost",
+    sortByActive: "Sort By Active Time",
+    sortBySessions: "Sort By Sessions",
+    monthlyBudget: "Monthly Budget",
+    budgetPromptMessage: "Enter a monthly USD budget. Use 0 to disable budget tracking.",
+    invalidBudget: "Enter a valid amount of 0 or more.",
+    forecast30Days: "30-Day Forecast",
+    cacheHeavy: "Cache Heavy",
+    deepThink: "Deep Think",
+    highOutput: "High Output",
+    balanced: "Balanced",
     clearCache: "Clear Cache",
     cacheClearedTitle: "Cache Cleared",
     cacheClearedMessage: "Cached widget data has been removed.",
@@ -190,8 +225,17 @@ const I18N = {
     tokenRate: "Token 速率",
     topSources: "主要来源",
     topModels: "主要模型",
+    topProjects: "主要项目",
+    projects: "项目",
+    project: "项目",
     session: "会话",
     sessions: "会话",
+    sessionShort: "次",
+    streak: "连续活跃",
+    lastActive: "最近活跃",
+    activityPulse: "活跃脉冲",
+    noActivityData: "当前时间范围没有活跃记录",
+    now: "刚刚",
     avgPerSessionShort: "均值/会话",
     avgTokensPerSession: "平均 Token/会话",
     topShare: "最高占比",
@@ -243,6 +287,17 @@ const I18N = {
     days: "天数",
     topList: "大号列表",
     topSort: "大号排序",
+    largeView: "大号视图",
+    overviewView: "概览",
+    activityView: "活跃",
+    privacyMode: "隐私模式",
+    accentColor: "强调色",
+    systemBlue: "系统蓝",
+    graphite: "石墨",
+    mint: "薄荷",
+    coral: "珊瑚",
+    enabled: "已开启",
+    disabled: "已关闭",
     system: "跟随系统",
     english: "English",
     chinese: "中文",
@@ -250,6 +305,16 @@ const I18N = {
     models: "模型",
     sortByTokens: "按 Token 排序",
     sortByCost: "按费用排序",
+    sortByActive: "按活跃时长排序",
+    sortBySessions: "按会话数排序",
+    monthlyBudget: "月度预算",
+    budgetPromptMessage: "输入美元月预算，填 0 可关闭预算追踪。",
+    invalidBudget: "请输入大于或等于 0 的有效金额。",
+    forecast30Days: "30 天预测",
+    cacheHeavy: "缓存主导",
+    deepThink: "深度推理",
+    highOutput: "输出偏高",
+    balanced: "均衡",
     clearCache: "清除缓存",
     cacheClearedTitle: "缓存已清除",
     cacheClearedMessage: "小组件缓存数据已删除。",
@@ -306,7 +371,14 @@ function adaptiveColor(theme, lightHex, darkHex, lightAlpha, darkAlpha) {
   return Color.dynamic(makeColor(lightHex, lightAlpha), makeColor(darkHex, darkAlpha));
 }
 
-function buildColors(theme) {
+function buildColors(theme, accent = DEFAULT_SETTINGS.accent) {
+  const accents = {
+    blue: "#5ca7ff",
+    graphite: "#8e8e93",
+    mint: "#32d583",
+    coral: "#ff7f73",
+  };
+  const accentHex = accents[accent] || accents.blue;
   return {
     bgTop: adaptiveColor(theme, "#f7f8fc", "#101015"),
     bgBottom: adaptiveColor(theme, "#edf0f7", "#08080b"),
@@ -316,6 +388,7 @@ function buildColors(theme) {
     muted: adaptiveColor(theme, "#555b66", "#b1b1b8"),
     faint: adaptiveColor(theme, "#8a8d98", "#777782"),
     drawFaint: makeColor("#858895"),
+    accent: makeColor(accentHex),
     blue: makeColor("#5ca7ff"),
     green: makeColor("#32d583"),
     purple: makeColor("#a78bfa"),
@@ -330,8 +403,11 @@ function normalizeConfig(config) {
   const c = config || {};
   const language = ["auto", "en", "zh"].includes(c.language) ? c.language : DEFAULT_SETTINGS.language;
   const theme = ["auto", "light", "dark"].includes(c.theme) ? c.theme : DEFAULT_SETTINGS.theme;
-  const topList = ["source", "model"].includes(c.topList) ? c.topList : DEFAULT_SETTINGS.topList;
-  const topSort = ["tokens", "cost"].includes(c.topSort) ? c.topSort : DEFAULT_SETTINGS.topSort;
+  const accent = ["blue", "graphite", "mint", "coral"].includes(c.accent) ? c.accent : DEFAULT_SETTINGS.accent;
+  const largeView = ["overview", "activity"].includes(c.largeView) ? c.largeView : DEFAULT_SETTINGS.largeView;
+  const topList = ["source", "model", "project"].includes(c.topList) ? c.topList : DEFAULT_SETTINGS.topList;
+  const validSorts = topList === "project" ? ["active", "sessions"] : ["tokens", "cost"];
+  const topSort = validSorts.includes(c.topSort) ? c.topSort : validSorts[0];
   const largeSummary = normalizeLargeSummary(c.largeSummary);
   const updateMode = isUpdateMode(c.updateMode) ? c.updateMode : DEFAULT_SETTINGS.updateMode;
   const lastUpdateCheckAt = Number.isFinite(Number(c.lastUpdateCheckAt)) ? Number(c.lastUpdateCheckAt) : 0;
@@ -341,9 +417,13 @@ function normalizeConfig(config) {
     days: clampDays(c.days || CONFIG.days),
     language,
     theme,
+    accent,
+    privacyMode: Boolean(c.privacyMode),
+    largeView,
     topList,
     topSort,
     largeSummary,
+    monthlyBudget: normalizeBudget(c.monthlyBudget),
     updateMode,
     oobeComplete: Boolean(c.oobeComplete),
     lastUpdateCheckAt,
@@ -363,7 +443,7 @@ function applyRuntimeSettings(config) {
   const c = normalizeConfig(config);
   ACTIVE_LANGUAGE = resolveLanguage(c.language);
   ACTIVE_THEME = c.theme;
-  COLORS = buildColors(c.theme);
+  COLORS = buildColors(c.theme, c.accent);
   return c;
 }
 
@@ -387,12 +467,26 @@ function themeName(value) {
 
 function topListName(value) {
   if (value === "model") return t("models");
+  if (value === "project") return t("projects");
   return t("agentClients");
 }
 
 function topSortName(value) {
   if (value === "cost") return t("sortByCost");
+  if (value === "active") return t("sortByActive");
+  if (value === "sessions") return t("sortBySessions");
   return t("sortByTokens");
+}
+
+function accentName(value) {
+  if (value === "graphite") return t("graphite");
+  if (value === "mint") return t("mint");
+  if (value === "coral") return t("coral");
+  return t("systemBlue");
+}
+
+function largeViewName(value) {
+  return value === "activity" ? t("activityView") : t("overviewView");
 }
 
 function normalizeLargeSummary(value, fallback = DEFAULT_SETTINGS.largeSummary) {
@@ -478,7 +572,9 @@ function cachePath() {
 
 function saveCache(payload) {
   try {
-    FileManager.local().writeString(cachePath(), JSON.stringify(payload));
+    const existing = loadCacheEntries();
+    const entries = [payload, ...existing.filter(item => !sameCacheRequest(item?.request, payload?.request))].slice(0, 8);
+    FileManager.local().writeString(cachePath(), JSON.stringify({ entries }));
   } catch {}
 }
 
@@ -490,15 +586,27 @@ function clearCache() {
   } catch {}
 }
 
-function loadCache() {
+function loadCacheEntries() {
   try {
     const fm = FileManager.local();
     const path = cachePath();
-    if (!fm.fileExists(path)) return null;
-    return JSON.parse(fm.readString(path));
+    if (!fm.fileExists(path)) return [];
+    const raw = JSON.parse(fm.readString(path));
+    if (Array.isArray(raw?.entries)) return raw.entries;
+    return raw?.payload ? [raw] : [];
   } catch {
-    return null;
+    return [];
   }
+}
+
+function loadCache(widgetConfig) {
+  const entries = loadCacheEntries();
+  if (!widgetConfig) return entries[0] || null;
+  return entries.find(item => cacheMatches(item, widgetConfig)) || null;
+}
+
+function sameCacheRequest(a, b) {
+  return a?.apiUrl === b?.apiUrl && a?.days === b?.days && a?.apiKeyHash === b?.apiKeyHash;
 }
 
 async function bootstrapIfNeeded() {
@@ -569,9 +677,13 @@ function parseConfigInput(raw) {
         days: clampDays(parsed.days || CONFIG.days),
         language: parsed.language || DEFAULT_SETTINGS.language,
         theme: parsed.theme || DEFAULT_SETTINGS.theme,
+        accent: parsed.accent || DEFAULT_SETTINGS.accent,
+        privacyMode: Boolean(parsed.privacyMode),
+        largeView: parsed.largeView || DEFAULT_SETTINGS.largeView,
         topList: parsed.topList || DEFAULT_SETTINGS.topList,
         topSort: parsed.topSort || DEFAULT_SETTINGS.topSort,
         largeSummary: normalizeLargeSummary(parsed.largeSummary),
+        monthlyBudget: normalizeBudget(parsed.monthlyBudget),
         updateMode: isUpdateMode(parsed.updateMode) ? parsed.updateMode : DEFAULT_SETTINGS.updateMode,
         oobeComplete: Boolean(parsed.oobeComplete),
       };
@@ -596,6 +708,44 @@ function clampDays(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return CONFIG.days;
   return Math.min(90, Math.max(1, Math.round(n)));
+}
+
+function normalizeBudget(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(1000000, Math.round(n * 100) / 100);
+}
+
+function parseWidgetParameter(raw) {
+  const out = {};
+  if (typeof raw !== "string" || !raw.trim()) return out;
+  for (const part of raw.split(",")) {
+    const index = part.indexOf("=");
+    if (index < 1) continue;
+    const key = part.slice(0, index).trim().toLowerCase();
+    const value = part.slice(index + 1).trim().toLowerCase();
+    if (key === "days" && Number.isFinite(Number(value))) out.days = clampDays(value);
+    if (key === "list" && ["source", "model", "project"].includes(value)) out.topList = value;
+    if (key === "sort" && ["tokens", "cost", "active", "sessions"].includes(value)) out.topSort = value;
+    if (key === "view" && ["overview", "activity"].includes(value)) out.largeView = value;
+    if (key === "theme" && ["auto", "light", "dark"].includes(value)) out.theme = value;
+    if (key === "accent" && ["blue", "graphite", "mint", "coral"].includes(value)) out.accent = value;
+    if (key === "privacy" && ["on", "off", "true", "false"].includes(value)) out.privacyMode = value === "on" || value === "true";
+    if (key === "budget" && Number.isFinite(Number(value)) && Number(value) >= 0) out.monthlyBudget = normalizeBudget(value);
+  }
+  return out;
+}
+
+function applyWidgetParameter(configValue, raw) {
+  return normalizeConfig({ ...configValue, ...parseWidgetParameter(raw) });
+}
+
+function widgetParameterValue() {
+  try {
+    return String(args?.widgetParameter || args?.queryParameters?.preset || "").trim();
+  } catch {
+    return "";
+  }
 }
 
 async function fetchUsage(widgetConfig) {
@@ -861,6 +1011,7 @@ function summarize(data, days = CONFIG.days) {
     sessions: visibleSessions.length,
     bySource: new Map(),
     byModel: new Map(),
+    byProject: new Map(),
   };
 
   for (const bucket of buckets) {
@@ -882,12 +1033,28 @@ function summarize(data, days = CONFIG.days) {
   }
 
   totals.activeSeconds = activeSecondsInWindow(visibleSessions, days);
+  for (const session of visibleSessions) {
+    const project = String(session?.project || "").trim();
+    if (project) {
+      addTo(totals.byProject, project, {
+        activeSeconds: sessionActiveSecondsInWindow(session, days),
+        sessions: 1,
+      });
+    }
+  }
+
+  const activity = activityPulse(visibleSessions, Math.min(7, clampDays(days)));
+  totals.activityDays = activity.days;
+  totals.streak = activity.streak;
+  totals.lastActivityAt = activity.lastActivityAt;
 
   totals.totalTokens = totals.input + totals.output + totals.reasoning + totals.cached;
   totals.topSources = topEntries(totals.bySource, "tokens", 4);
   totals.topSourcesByCost = topEntries(totals.bySource, "cost", 4);
   totals.topModels = topEntries(totals.byModel, "tokens", 4);
   totals.topModelsByCost = topEntries(totals.byModel, "cost", 4);
+  totals.topProjects = topEntries(totals.byProject, "activeSeconds", 4);
+  totals.topProjectsBySessions = topEntries(totals.byProject, "sessions", 4);
   return totals;
 }
 
@@ -942,6 +1109,64 @@ function activeSecondsInWindow(sessions, days) {
   return Math.round(Math.min(active, wallSeconds || maxSeconds));
 }
 
+function sessionActiveSecondsInWindow(session, days, now = Date.now()) {
+  const start = now - clampDays(days) * 86400 * 1000;
+  const first = parseTimeMs(session?.firstMessageAt);
+  const last = parseTimeMs(session?.lastMessageAt);
+  const active = Math.max(0, number(session?.activeSeconds));
+  if (first == null || last == null) return Math.min(active, clampDays(days) * 86400);
+  const overlap = Math.max(0, Math.min(now, Math.max(first, last)) - Math.max(start, Math.min(first, last))) / 1000;
+  return Math.min(active, Math.round(overlap));
+}
+
+function activityPulse(sessions, dayCount = 7, now = Date.now()) {
+  const count = Math.max(1, Math.min(7, Math.round(number(dayCount)) || 7));
+  const today = startOfLocalDay(new Date(now));
+  const days = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    days.push({ date: date.toISOString(), activeSeconds: 0, sessions: 0 });
+  }
+
+  let lastActivityAt = 0;
+  for (const session of sessions || []) {
+    const first = parseTimeMs(session?.firstMessageAt);
+    const last = parseTimeMs(session?.lastMessageAt);
+    const activityAt = last ?? first;
+    if (activityAt == null) continue;
+    lastActivityAt = Math.max(lastActivityAt, activityAt);
+
+    const sessionStart = Math.min(first ?? activityAt, last ?? activityAt);
+    const sessionEnd = Math.max(first ?? activityAt, last ?? activityAt);
+    const active = Math.max(0, number(session?.activeSeconds));
+    const span = Math.max(1, sessionEnd - sessionStart);
+
+    for (const day of days) {
+      const dayStart = startOfLocalDay(new Date(day.date)).getTime();
+      const dayEndDate = new Date(dayStart);
+      dayEndDate.setDate(dayEndDate.getDate() + 1);
+      const dayEnd = dayEndDate.getTime();
+      const overlap = Math.max(0, Math.min(sessionEnd, dayEnd) - Math.max(sessionStart, dayStart));
+      if (overlap > 0 || (sessionStart === sessionEnd && sessionStart >= dayStart && sessionStart < dayEnd)) {
+        day.activeSeconds += sessionStart === sessionEnd ? active : active * overlap / span;
+      }
+      if (activityAt >= dayStart && activityAt < dayEnd) day.sessions += 1;
+    }
+  }
+
+  days.forEach(day => {
+    day.activeSeconds = Math.round(day.activeSeconds);
+  });
+  let cursor = days.length - 1;
+  if (cursor >= 0 && days[cursor].sessions === 0 && days[cursor].activeSeconds === 0) cursor -= 1;
+  let streak = 0;
+  while (cursor >= 0 && (days[cursor].sessions > 0 || days[cursor].activeSeconds > 0)) {
+    streak += 1;
+    cursor -= 1;
+  }
+  return { days, streak, lastActivityAt: lastActivityAt || null };
+}
+
 function mergeDurationSeconds(ranges) {
   if (ranges.length === 0) return 0;
   ranges.sort((a, b) => a[0] - b[0]);
@@ -969,9 +1194,8 @@ function parseTimeMs(value) {
 }
 
 function addTo(map, key, delta) {
-  const cur = map.get(key) || { tokens: 0, cost: 0 };
-  cur.tokens += delta.tokens || 0;
-  cur.cost += delta.cost || 0;
+  const cur = map.get(key) || {};
+  for (const name of Object.keys(delta || {})) cur[name] = number(cur[name]) + number(delta[name]);
   map.set(key, cur);
 }
 
@@ -982,6 +1206,11 @@ function topEntries(map, sortBy, limit) {
 function number(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function projectName(value) {
+  const text = String(value || "").trim().replace(/[\\/]+$/, "");
+  return text ? text.split(/[\\/]/).pop() : "";
 }
 
 function formatTokens(n) {
@@ -1027,22 +1256,56 @@ function formatTokenRate(tokens, seconds) {
   return `${formatTokens(number(tokens) / hours)}/hr`;
 }
 
-function insightSummary(summary, days) {
-  const cacheShare = formatPercent(percentOf(summary.cached, summary.totalTokens));
-  const dailyCost = formatCostShort(summary.cost / Math.max(1, clampDays(days)));
-  const tokenRate = formatTokenRate(summary.totalTokens, summary.activeSeconds);
-  return `${t("cache")} ${cacheShare} · ${dailyCost}/d · ${tokenRate}`;
+function usageStatusKey(summary) {
+  const total = number(summary?.totalTokens);
+  if (percentOf(summary?.reasoning, total) >= 20) return "deepThink";
+  if (percentOf(summary?.cached, total) >= 60) return "cacheHeavy";
+  if (percentOf(summary?.output, total) >= 25) return "highOutput";
+  return "balanced";
 }
 
-function topListSummary(summary, entries, metrics) {
+function budgetForecast(summary, days, monthlyBudget) {
+  const budget = normalizeBudget(monthlyBudget);
+  const dailyCost = number(summary?.cost) / Math.max(1, clampDays(days));
+  const forecastCost = dailyCost * 30;
+  return { budget, dailyCost, forecastCost, ratio: budget > 0 ? forecastCost / budget : 0 };
+}
+
+function formatBudgetPercent(ratio) {
+  return `${Math.round(Math.max(0, number(ratio)) * 100)}%`;
+}
+
+function privateValue(value, privacyMode) {
+  return privacyMode ? "••••" : value;
+}
+
+function insightSummary(summary, days, options = {}) {
+  const cacheShare = formatPercent(percentOf(summary.cached, summary.totalTokens));
+  const status = t(usageStatusKey(summary));
+  if (options.privacyMode) {
+    const sessions = Math.max(0, Math.round(number(summary.sessions)));
+    return `${status} · ${t("cache")} ${cacheShare} · ${sessions} ${t(sessions === 1 ? "session" : "sessions")}`;
+  }
+  const forecast = budgetForecast(summary, days, options.monthlyBudget);
+  if (forecast.budget > 0) return `${status} · ${t("forecast30Days")} ${formatCostShort(forecast.forecastCost)}`;
+  return `${status} · ${t("cache")} ${cacheShare} · ${formatCostShort(forecast.dailyCost)}/d · ${formatTokenRate(summary.totalTokens, summary.activeSeconds)}`;
+}
+
+function topListSummary(summary, entries, metrics, options = {}) {
   const selected = normalizeLargeSummary(metrics, DEFAULT_SETTINGS.largeSummary);
   if (selected.length === 0) return "";
 
   const sessionCount = Math.max(0, Math.round(number(summary.sessions)));
   const sessionLabel = sessionCount === 1 ? t("session") : t("sessions");
-  const avg = sessionCount > 0 ? formatTokens(number(summary.totalTokens) / sessionCount) : "-";
-  const topTokens = entries?.[0]?.[1]?.tokens || 0;
-  const topShare = formatSharePercent(percentOf(topTokens, summary.totalTokens));
+  const avg = options.privacyMode ? "••••" : sessionCount > 0 ? formatTokens(number(summary.totalTokens) / sessionCount) : "-";
+  const projectMeasure = options.sort === "sessions" ? "sessions" : "activeSeconds";
+  const topValue = options.kind === "project"
+    ? number(entries?.[0]?.[1]?.[projectMeasure])
+    : number(entries?.[0]?.[1]?.tokens);
+  const totalValue = options.kind === "project"
+    ? number(options.sort === "sessions" ? summary.sessions : summary.activeSeconds)
+    : number(summary.totalTokens);
+  const topShare = formatSharePercent(percentOf(topValue, totalValue));
   const items = {
     sessions: `${sessionCount} ${sessionLabel}`,
     avgTokensPerSession: `${t("avgPerSessionShort")} ${avg}`,
@@ -1113,6 +1376,17 @@ function agoText(ts) {
   return `${pad2(date.getMonth() + 1)}/${pad2(date.getDate())}`;
 }
 
+function relativeAgeShort(ts, now = Date.now()) {
+  if (!ts) return "-";
+  const time = Number(new Date(ts));
+  if (!Number.isFinite(time)) return "-";
+  const seconds = Math.max(0, Math.round((now - time) / 1000));
+  if (seconds < 60) return t("now");
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
 function startOfLocalDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -1138,13 +1412,14 @@ function fitText(text, size, minSize) {
 }
 
 function refreshUrl() {
+  const preset = ACTIVE_WIDGET_PARAMETER ? `&preset=${encodeURIComponent(ACTIVE_WIDGET_PARAMETER)}` : "";
   try {
     if (typeof URLScheme !== "undefined" && URLScheme.forRunningScript) {
       const base = URLScheme.forRunningScript();
-      return base + (base.includes("?") ? "&" : "?") + "refresh=1";
+      return base + (base.includes("?") ? "&" : "?") + `refresh=1${preset}`;
     }
   } catch {}
-  return `scriptable:///run?scriptName=${encodeURIComponent(Script.name())}&refresh=1`;
+  return `scriptable:///run?scriptName=${encodeURIComponent(Script.name())}&refresh=1${preset}`;
 }
 
 function settingsUrl() {
@@ -1310,13 +1585,63 @@ function progressImage(ratio, width, height, color) {
   ctx.setFillColor(COLORS.track);
   ctx.fillPath();
 
-  const fillWidth = Math.max(height, width * Math.max(0, Math.min(1, ratio)));
-  const fill = new Path();
-  fill.addRoundedRect(new Rect(0, 0, fillWidth, height), height / 2, height / 2);
-  ctx.addPath(fill);
-  ctx.setFillColor(color);
-  ctx.fillPath();
+  const progress = Math.max(0, Math.min(1, ratio));
+  if (progress > 0) {
+    const fillWidth = Math.max(height, width * progress);
+    const fill = new Path();
+    fill.addRoundedRect(new Rect(0, 0, fillWidth, height), height / 2, height / 2);
+    ctx.addPath(fill);
+    ctx.setFillColor(color);
+    ctx.fillPath();
+  }
 
+  return ctx.getImage();
+}
+
+function weekdayShort(value) {
+  const date = new Date(value);
+  const en = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const zh = ["日", "一", "二", "三", "四", "五", "六"];
+  return (ACTIVE_LANGUAGE === "zh" ? zh : en)[date.getDay()] || "";
+}
+
+function activityPulseImage(days, width, height, color) {
+  const ctx = new DrawContext();
+  ctx.size = new Size(width, height);
+  ctx.opaque = false;
+  ctx.respectScreenScale = true;
+
+  const values = Array.isArray(days) && days.length > 0 ? days : [{ date: new Date().toISOString(), activeSeconds: 0, sessions: 0 }];
+  const gap = 7;
+  const columnWidth = (width - gap * (values.length - 1)) / values.length;
+  const barWidth = Math.max(8, Math.min(22, columnWidth - 8));
+  const chartY = 3;
+  const chartHeight = Math.max(12, height - 19);
+  const maxValue = Math.max(1, ...values.map(item => number(item.activeSeconds) || (number(item.sessions) > 0 ? 1 : 0)));
+
+  ctx.setFont(Font.semiboldSystemFont(8));
+  ctx.setTextColor(COLORS.drawFaint);
+  values.forEach((item, index) => {
+    const x = index * (columnWidth + gap);
+    const barX = x + (columnWidth - barWidth) / 2;
+    const track = new Path();
+    track.addRoundedRect(new Rect(barX, chartY, barWidth, chartHeight), barWidth / 2.8, barWidth / 2.8);
+    ctx.addPath(track);
+    ctx.setFillColor(COLORS.track);
+    ctx.fillPath();
+
+    const value = number(item.activeSeconds) || (number(item.sessions) > 0 ? 1 : 0);
+    if (value > 0) {
+      const fillHeight = Math.max(5, chartHeight * value / maxValue);
+      const fill = new Path();
+      fill.addRoundedRect(new Rect(barX, chartY + chartHeight - fillHeight, barWidth, fillHeight), barWidth / 2.8, barWidth / 2.8);
+      ctx.addPath(fill);
+      ctx.setFillColor(color || COLORS.accent);
+      ctx.fillPath();
+    }
+    ctx.setTextColor(COLORS.drawFaint);
+    ctx.drawTextInRect(weekdayShort(item.date), new Rect(x, height - 12, columnWidth, 11));
+  });
   return ctx.getImage();
 }
 
@@ -1351,7 +1676,7 @@ function addHeader(widget, payload, options = {}) {
   if (icon) {
     const refresh = right.addImage(icon);
     refresh.imageSize = new Size(15, 15);
-    refresh.tintColor = COLORS.blue;
+    refresh.tintColor = COLORS.accent;
   }
 }
 
@@ -1431,6 +1756,7 @@ function buildMediumWidget(widget, payload) {
   }
 
   const s = payload.summary;
+  if (payload.largeView === "activity") return buildLargeActivity(widget, payload, s);
   const metricRow = widget.addStack();
   metricRow.layoutHorizontally();
   metricRow.addSpacer();
@@ -1441,22 +1767,22 @@ function buildMediumWidget(widget, payload) {
   const metricWidth = (LAYOUT.mediumContentWidth - metricGap * 3) / 4;
   metrics.spacing = metricGap;
   metrics.size = new Size(LAYOUT.mediumContentWidth, metricHeight);
-  addMetric(metrics, t("token"), formatTokens(s.totalTokens), COLORS.text, {
+  addMetric(metrics, t("token"), privateValue(formatTokens(s.totalTokens), payload.privacyMode), COLORS.text, {
     compact: true,
     width: metricWidth,
     height: metricHeight,
   });
-  addMetric(metrics, t("cost"), formatCostShort(s.cost), COLORS.green, {
+  addMetric(metrics, t("cost"), privateValue(formatCostShort(s.cost), payload.privacyMode), COLORS.green, {
     compact: true,
     width: metricWidth,
     height: metricHeight,
   });
-  addMetric(metrics, t("active"), formatDurationMetric(s.activeSeconds), COLORS.blue, {
+  addMetric(metrics, t("active"), formatDurationMetric(s.activeSeconds), COLORS.accent, {
     compact: true,
     width: metricWidth,
     height: metricHeight,
   });
-  addMetric(metrics, t("cache"), formatTokens(s.cached), COLORS.cache, {
+  addMetric(metrics, t("cache"), privateValue(formatTokens(s.cached), payload.privacyMode), COLORS.cache, {
     compact: true,
     width: metricWidth,
     height: metricHeight,
@@ -1514,7 +1840,7 @@ function buildSmallWidget(widget, payload) {
   if (img) {
     const icon = refreshTarget.addImage(img);
     icon.imageSize = new Size(14, 14);
-    icon.tintColor = COLORS.blue;
+    icon.tintColor = COLORS.accent;
   }
   widget.addSpacer(8);
 
@@ -1537,11 +1863,11 @@ function buildSmallWidget(widget, payload) {
     return widget;
   }
 
-  const total = fitText(widget.addText(formatTokens(s.totalTokens)), 30, 16);
+  const total = fitText(widget.addText(privateValue(formatTokens(s.totalTokens), payload.privacyMode)), 30, 16);
   total.textColor = COLORS.text;
   widget.addSpacer(4);
 
-  const cost = widget.addText(formatCostShort(s.cost));
+  const cost = widget.addText(privateValue(formatCostShort(s.cost), payload.privacyMode));
   cost.font = Font.semiboldMonospacedSystemFont(15);
   cost.textColor = COLORS.green;
   widget.addSpacer(7);
@@ -1590,10 +1916,10 @@ function buildLargeWidget(widget, payload) {
   const metricWidth = (LAYOUT.largeContentWidth - metricGap * 3) / 4;
   metrics.spacing = metricGap;
   metrics.size = new Size(LAYOUT.largeContentWidth, 62);
-  addMetric(metrics, t("token"), formatTokens(s.totalTokens), COLORS.text, { width: metricWidth, height: 62 });
-  addMetric(metrics, t("cost"), formatCostShort(s.cost), COLORS.green, { width: metricWidth, height: 62 });
-  addMetric(metrics, t("active"), formatDurationMetric(s.activeSeconds), COLORS.blue, { width: metricWidth, height: 62 });
-  addMetric(metrics, t("cache"), formatTokens(s.cached), COLORS.cache, { width: metricWidth, height: 62 });
+  addMetric(metrics, t("token"), privateValue(formatTokens(s.totalTokens), payload.privacyMode), COLORS.text, { width: metricWidth, height: 62 });
+  addMetric(metrics, t("cost"), privateValue(formatCostShort(s.cost), payload.privacyMode), COLORS.green, { width: metricWidth, height: 62 });
+  addMetric(metrics, t("active"), formatDurationMetric(s.activeSeconds), COLORS.accent, { width: metricWidth, height: 62 });
+  addMetric(metrics, t("cache"), privateValue(formatTokens(s.cached), payload.privacyMode), COLORS.cache, { width: metricWidth, height: 62 });
   metricRow.addSpacer();
 
   if (s.totalTokens <= 0) {
@@ -1608,7 +1934,7 @@ function buildLargeWidget(widget, payload) {
   }
 
   widget.addSpacer(10);
-  addInsightStrip(widget, s, payload.days);
+  addInsightStrip(widget, s, payload);
   widget.addSpacer(10);
   const section = widget.addStack();
   section.layoutHorizontally();
@@ -1644,12 +1970,16 @@ function buildLargeWidget(widget, payload) {
   addRailCaption(caption, t("cache"), COLORS.cache, s.cached, s.totalTokens);
 
   widget.addSpacer(14);
-  const topList = payload.topList === "model" ? "model" : "source";
+  const topList = ["source", "model", "project"].includes(payload.topList) ? payload.topList : "source";
   const topEntries = topEntriesFor(s, topList, payload.topSort);
-  const sourcesTitle = widget.addText(topList === "model" ? t("topModels") : t("topSources"));
+  const sourcesTitle = widget.addText(topListTitle(topList));
   sourcesTitle.font = Font.semiboldSystemFont(11);
   sourcesTitle.textColor = COLORS.muted;
-  const summaryText = topListSummary(s, topEntries, payload.largeSummary);
+  const summaryText = topListSummary(s, topEntries, payload.largeSummary, {
+    kind: topList,
+    sort: payload.topSort,
+    privacyMode: payload.privacyMode,
+  });
   if (summaryText) {
     widget.addSpacer(2);
     const topMeta = widget.addText(summaryText);
@@ -1661,11 +1991,69 @@ function buildLargeWidget(widget, payload) {
   } else {
     widget.addSpacer(7);
   }
-  addTopList(widget, topEntries, 4, topList);
+  addTopList(widget, topEntries, 4, topList, {
+    sort: payload.topSort,
+    privacyMode: payload.privacyMode,
+  });
   return widget;
 }
 
-function addTopList(parent, entries, limit, kind) {
+function buildLargeActivity(widget, payload, summary) {
+  const metricRow = widget.addStack();
+  metricRow.layoutHorizontally();
+  metricRow.addSpacer();
+  const metrics = metricRow.addStack();
+  metrics.layoutHorizontally();
+  metrics.spacing = 7;
+  const metricWidth = (LAYOUT.largeContentWidth - 21) / 4;
+  metrics.size = new Size(LAYOUT.largeContentWidth, 62);
+  addMetric(metrics, t("active"), formatDurationMetric(summary.activeSeconds), COLORS.accent, { width: metricWidth, height: 62 });
+  addMetric(metrics, t("sessions"), String(Math.max(0, Math.round(number(summary.sessions)))), COLORS.text, { width: metricWidth, height: 62 });
+  addMetric(metrics, t("streak"), `${Math.max(0, Math.round(number(summary.streak)))}d`, COLORS.green, { width: metricWidth, height: 62 });
+  addMetric(metrics, t("lastActive"), relativeAgeShort(summary.lastActivityAt), COLORS.cache, { width: metricWidth, height: 62 });
+  metricRow.addSpacer();
+
+  widget.addSpacer(10);
+  addInsightStrip(widget, summary, payload);
+  widget.addSpacer(9);
+
+  const section = widget.addStack();
+  section.layoutHorizontally();
+  const title = section.addText(t("activityPulse"));
+  title.font = Font.semiboldSystemFont(11);
+  title.textColor = COLORS.muted;
+  section.addSpacer();
+  const updated = section.addText(t("updated", { time: agoText(payload.updatedAt) }));
+  updated.font = Font.systemFont(10);
+  updated.textColor = COLORS.faint;
+  widget.addSpacer(7);
+
+  const pulseDays = Array.isArray(summary.activityDays) ? summary.activityDays : [];
+  if (pulseDays.some(day => number(day.activeSeconds) > 0 || number(day.sessions) > 0)) {
+    const pulse = widget.addImage(activityPulseImage(pulseDays, LAYOUT.largeContentWidth, 50, COLORS.accent));
+    pulse.imageSize = new Size(LAYOUT.largeContentWidth, 50);
+  } else {
+    const empty = widget.addText(t("noActivityData"));
+    empty.font = Font.systemFont(10);
+    empty.textColor = COLORS.faint;
+  }
+
+  widget.addSpacer(8);
+  const projects = topEntriesFor(summary, "project", "active");
+  const kind = projects.length > 0 ? "project" : "source";
+  const entries = projects.length > 0 ? projects : topEntriesFor(summary, "source", "tokens");
+  const listTitle = widget.addText(topListTitle(kind));
+  listTitle.font = Font.semiboldSystemFont(11);
+  listTitle.textColor = COLORS.muted;
+  widget.addSpacer(6);
+  addTopList(widget, entries, 4, kind, {
+    sort: kind === "project" ? "active" : "tokens",
+    privacyMode: payload.privacyMode,
+  });
+  return widget;
+}
+
+function addTopList(parent, entries, limit, kind, options = {}) {
   const visible = entries.slice(0, limit);
   if (visible.length === 0) {
     const empty = parent.addText(t("noData"));
@@ -1674,24 +2062,32 @@ function addTopList(parent, entries, limit, kind) {
     empty.lineLimit = 2;
     return;
   }
-  const max = visible[0][1].tokens || 1;
+  const measure = kind === "project"
+    ? (options.sort === "sessions" ? "sessions" : "activeSeconds")
+    : (options.sort === "cost" ? "cost" : "tokens");
+  const max = Math.max(1, ...visible.map(([, item]) => number(item?.[measure])));
   const rows = parent.addStack();
   rows.layoutVertically();
   rows.spacing = limit > 3 ? 5 : 6;
-  const palette = [COLORS.green, COLORS.blue, COLORS.purple, COLORS.cache];
+  const palette = [COLORS.accent, COLORS.green, COLORS.purple, COLORS.cache];
   visible.forEach(([name, item], idx) => {
     const rowHeight = limit > 3 ? 16 : 18;
-    const row = rows.addImage(topListRowImage(topItemLabel(name, kind), item, max, palette[idx % palette.length], LAYOUT.largeContentWidth, rowHeight));
+    const label = topItemLabel(name, kind, idx, options.privacyMode);
+    const image = kind === "project"
+      ? projectListRowImage(label, item, max, palette[idx % palette.length], LAYOUT.largeContentWidth, rowHeight, options.sort)
+      : topListRowImage(label, item, max, palette[idx % palette.length], LAYOUT.largeContentWidth, rowHeight, options.sort, options.privacyMode);
+    const row = rows.addImage(image);
     row.imageSize = new Size(LAYOUT.largeContentWidth, rowHeight);
   });
 }
 
 function topEntriesFor(summary, kind, sort) {
-  if (kind === "model") return sort === "cost" ? summary.topModelsByCost || summary.topModels : summary.topModels;
-  return sort === "cost" ? summary.topSourcesByCost || summary.topSources : summary.topSources;
+  if (kind === "project") return sort === "sessions" ? summary.topProjectsBySessions || summary.topProjects || [] : summary.topProjects || [];
+  if (kind === "model") return (sort === "cost" ? summary.topModelsByCost || summary.topModels : summary.topModels) || [];
+  return (sort === "cost" ? summary.topSourcesByCost || summary.topSources : summary.topSources) || [];
 }
 
-function topListRowImage(label, item, maxTokens, color, width, height) {
+function topListRowImage(label, item, maxValue, color, width, height, sort = "tokens", privacyMode = false) {
   const ctx = new DrawContext();
   ctx.size = new Size(width, height);
   ctx.opaque = false;
@@ -1707,7 +2103,8 @@ function topListRowImage(label, item, maxTokens, color, width, height) {
   const costW = width - costX;
   const barH = 6;
   const barY = Math.round((height - barH) / 2);
-  const pct = maxTokens > 0 ? number(item.tokens) / maxTokens : 0;
+  const value = sort === "cost" ? number(item.cost) : number(item.tokens);
+  const pct = maxValue > 0 ? value / maxValue : 0;
 
   ctx.setFont(Font.semiboldSystemFont(10));
   ctx.setTextColor(COLORS.muted);
@@ -1727,10 +2124,46 @@ function topListRowImage(label, item, maxTokens, color, width, height) {
 
   ctx.setFont(Font.semiboldMonospacedSystemFont(10));
   ctx.setTextColor(COLORS.text);
-  ctx.drawTextInRect(formatTokens(number(item.tokens)), new Rect(tokenX, 1, tokenW, height - 1));
+  ctx.drawTextInRect(privateValue(formatTokens(number(item.tokens)), privacyMode), new Rect(tokenX, 1, tokenW, height - 1));
   ctx.setTextColor(COLORS.green);
-  ctx.drawTextInRect(formatCostShort(number(item.cost)), new Rect(costX, 1, costW, height - 1));
+  ctx.drawTextInRect(privateValue(formatCostShort(number(item.cost)), privacyMode), new Rect(costX, 1, costW, height - 1));
 
+  return ctx.getImage();
+}
+
+function projectListRowImage(label, item, maxValue, color, width, height, sort = "active") {
+  const ctx = new DrawContext();
+  ctx.size = new Size(width, height);
+  ctx.opaque = false;
+  ctx.respectScreenScale = true;
+  const labelW = 100;
+  const barX = 112;
+  const barW = 74;
+  const activeX = 198;
+  const sessionsX = 254;
+  const barH = 6;
+  const barY = Math.round((height - barH) / 2);
+  const value = sort === "sessions" ? number(item.sessions) : number(item.activeSeconds);
+  const pct = maxValue > 0 ? value / maxValue : 0;
+
+  ctx.setFont(Font.semiboldSystemFont(10));
+  ctx.setTextColor(COLORS.muted);
+  ctx.drawTextInRect(middleEllipsize(label, 14), new Rect(0, 1, labelW, height - 1));
+  const track = new Path();
+  track.addRoundedRect(new Rect(barX, barY, barW, barH), barH / 2, barH / 2);
+  ctx.addPath(track);
+  ctx.setFillColor(COLORS.track);
+  ctx.fillPath();
+  const fill = new Path();
+  fill.addRoundedRect(new Rect(barX, barY, Math.max(barH, barW * Math.max(0, Math.min(1, pct))), barH), barH / 2, barH / 2);
+  ctx.addPath(fill);
+  ctx.setFillColor(color);
+  ctx.fillPath();
+  ctx.setFont(Font.semiboldMonospacedSystemFont(10));
+  ctx.setTextColor(COLORS.text);
+  ctx.drawTextInRect(formatDurationMetric(number(item.activeSeconds)), new Rect(activeX, 1, 52, height - 1));
+  ctx.setTextColor(COLORS.accent);
+  ctx.drawTextInRect(`${Math.round(number(item.sessions))}${t("sessionShort")}`, new Rect(sessionsX, 1, width - sessionsX, height - 1));
   return ctx.getImage();
 }
 
@@ -1745,7 +2178,7 @@ function middleEllipsize(value, maxChars) {
   return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
 }
 
-function addInsightStrip(parent, summary, days) {
+function addInsightStrip(parent, summary, payload) {
   const outer = parent.addStack();
   outer.layoutHorizontally();
   outer.addSpacer();
@@ -1756,16 +2189,34 @@ function addInsightStrip(parent, summary, days) {
   pill.cornerRadius = 8;
   pill.setPadding(6, 10, 6, 10);
   pill.size = new Size(LAYOUT.largeContentWidth, 30);
-  const text = pill.addText(insightSummary(summary, days));
-  text.font = Font.semiboldMonospacedSystemFont(10);
+  const text = pill.addText(insightSummary(summary, payload.days, payload));
+  text.font = Font.semiboldMonospacedSystemFont(9);
   text.textColor = COLORS.muted;
   text.lineLimit = 1;
   text.minimumScaleFactor = 0.65;
+  const forecast = budgetForecast(summary, payload.days, payload.monthlyBudget);
+  if (forecast.budget > 0) {
+    pill.addSpacer(7);
+    const bar = pill.addImage(progressImage(forecast.ratio, 42, 5, forecast.ratio >= 1 ? COLORS.amber : COLORS.accent));
+    bar.imageSize = new Size(42, 5);
+    pill.addSpacer(4);
+    const percent = pill.addText(formatBudgetPercent(forecast.ratio));
+    percent.font = Font.semiboldMonospacedSystemFont(8);
+    percent.textColor = forecast.ratio >= 1 ? COLORS.amber : COLORS.accent;
+    percent.lineLimit = 1;
+  }
   outer.addSpacer();
 }
 
-function topItemLabel(name, kind) {
+function topListTitle(kind) {
+  if (kind === "model") return t("topModels");
+  if (kind === "project") return t("topProjects");
+  return t("topSources");
+}
+
+function topItemLabel(name, kind, index = 0, privacyMode = false) {
   if (kind === "source") return sourceLabel(name);
+  if (kind === "project") return privacyMode ? `${t("project")} ${index + 1}` : projectName(name);
   return modelLabel(name);
 }
 
@@ -1911,27 +2362,70 @@ async function chooseTheme(current) {
   return current;
 }
 
+async function chooseAccent(current) {
+  const a = new Alert();
+  a.title = t("accentColor");
+  a.addAction(t("systemBlue"));
+  a.addAction(t("graphite"));
+  a.addAction(t("mint"));
+  a.addAction(t("coral"));
+  a.addCancelAction(t("cancel"));
+  const choice = await a.presentSheet();
+  return ["blue", "graphite", "mint", "coral"][choice] || current;
+}
+
+async function choosePrivacyMode(current) {
+  const a = new Alert();
+  a.title = t("privacyMode");
+  a.addAction(t("enabled"));
+  a.addAction(t("disabled"));
+  a.addCancelAction(t("cancel"));
+  const choice = await a.presentSheet();
+  if (choice === 0) return true;
+  if (choice === 1) return false;
+  return current;
+}
+
+async function chooseLargeView(current) {
+  const a = new Alert();
+  a.title = t("largeView");
+  a.addAction(t("overviewView"));
+  a.addAction(t("activityView"));
+  a.addCancelAction(t("cancel"));
+  const choice = await a.presentSheet();
+  if (choice === 0) return "overview";
+  if (choice === 1) return "activity";
+  return current;
+}
+
 async function chooseTopList(current) {
   const a = new Alert();
   a.title = t("topList");
   a.addAction(t("agentClients"));
   a.addAction(t("models"));
+  a.addAction(t("projects"));
   a.addCancelAction(t("cancel"));
   const choice = await a.presentSheet();
   if (choice === 0) return "source";
   if (choice === 1) return "model";
+  if (choice === 2) return "project";
   return current;
 }
 
-async function chooseTopSort(current) {
+async function chooseTopSort(current, kind) {
   const a = new Alert();
   a.title = t("topSort");
-  a.addAction(t("sortByTokens"));
-  a.addAction(t("sortByCost"));
+  if (kind === "project") {
+    a.addAction(t("sortByActive"));
+    a.addAction(t("sortBySessions"));
+  } else {
+    a.addAction(t("sortByTokens"));
+    a.addAction(t("sortByCost"));
+  }
   a.addCancelAction(t("cancel"));
   const choice = await a.presentSheet();
-  if (choice === 1) return "cost";
-  if (choice === 0) return "tokens";
+  if (choice === 0) return kind === "project" ? "active" : "tokens";
+  if (choice === 1) return kind === "project" ? "sessions" : "cost";
   return current;
 }
 
@@ -1995,6 +2489,23 @@ async function chooseDays(current) {
   return clampDays(a.textFieldValue(0));
 }
 
+async function chooseMonthlyBudget(current) {
+  const a = new Alert();
+  a.title = t("monthlyBudget");
+  a.message = t("budgetPromptMessage");
+  a.addTextField("0", String(current || 0));
+  a.addAction(t("save"));
+  a.addCancelAction(t("cancel"));
+  const choice = await a.presentAlert();
+  if (choice < 0) return current;
+  const value = Number(a.textFieldValue(0));
+  if (!Number.isFinite(value) || value < 0) {
+    await presentUpdateAlert(t("monthlyBudget"), t("invalidBudget"));
+    return current;
+  }
+  return normalizeBudget(value);
+}
+
 async function changeApiKey(current) {
   const a = new Alert();
   a.title = t("keyPromptTitle");
@@ -2052,9 +2563,10 @@ async function presentDataSettings(cfg) {
   while (true) {
     const a = new Alert();
     a.title = t("dataSettings");
-    a.message = `${t("apiKeySaved")}: ${next.apiKey ? t("yes") : t("no")}\n${t("days")}: ${next.days}`;
+    a.message = `${t("apiKeySaved")}: ${next.apiKey ? t("yes") : t("no")}\n${t("days")}: ${next.days}\n${t("monthlyBudget")}: ${next.monthlyBudget > 0 ? formatCostShort(next.monthlyBudget) : t("disabled")}`;
     a.addAction(t("changeKey"));
     a.addAction(t("days"));
+    a.addAction(t("monthlyBudget"));
     a.addAction(t("clearCache"));
     a.addCancelAction(t("cancel"));
     const choice = await a.presentSheet();
@@ -2068,6 +2580,11 @@ async function presentDataSettings(cfg) {
       continue;
     }
     if (choice === 2) {
+      next = applyRuntimeSettings({ ...next, monthlyBudget: await chooseMonthlyBudget(next.monthlyBudget) });
+      saveConfig(next);
+      continue;
+    }
+    if (choice === 3) {
       clearCache();
       await presentUpdateAlert(t("cacheClearedTitle"), t("cacheClearedMessage"));
       continue;
@@ -2081,9 +2598,12 @@ async function presentDisplaySettings(cfg) {
   while (true) {
     const a = new Alert();
     a.title = t("displaySettings");
-    a.message = `${t("language")}: ${languageName(next.language)}\n${t("appearance")}: ${themeName(next.theme)}\n${t("topList")}: ${topListName(next.topList)}\n${t("topSort")}: ${topSortName(next.topSort)}\n${t("largeSummary")}: ${largeSummaryName(next.largeSummary)}`;
+    a.message = `${t("language")}: ${languageName(next.language)}\n${t("appearance")}: ${themeName(next.theme)}\n${t("accentColor")}: ${accentName(next.accent)}\n${t("privacyMode")}: ${next.privacyMode ? t("enabled") : t("disabled")}\n${t("largeView")}: ${largeViewName(next.largeView)}\n${t("topList")}: ${topListName(next.topList)}\n${t("topSort")}: ${topSortName(next.topSort)}\n${t("largeSummary")}: ${largeSummaryName(next.largeSummary)}`;
     a.addAction(t("language"));
     a.addAction(t("appearance"));
+    a.addAction(t("accentColor"));
+    a.addAction(t("privacyMode"));
+    a.addAction(t("largeView"));
     a.addAction(t("topList"));
     a.addAction(t("topSort"));
     a.addAction(t("largeSummary"));
@@ -2100,16 +2620,31 @@ async function presentDisplaySettings(cfg) {
       continue;
     }
     if (choice === 2) {
-      next = applyRuntimeSettings({ ...next, topList: await chooseTopList(next.topList) });
+      next = applyRuntimeSettings({ ...next, accent: await chooseAccent(next.accent) });
       saveConfig(next);
       continue;
     }
     if (choice === 3) {
-      next = applyRuntimeSettings({ ...next, topSort: await chooseTopSort(next.topSort) });
+      next = applyRuntimeSettings({ ...next, privacyMode: await choosePrivacyMode(next.privacyMode) });
       saveConfig(next);
       continue;
     }
     if (choice === 4) {
+      next = applyRuntimeSettings({ ...next, largeView: await chooseLargeView(next.largeView) });
+      saveConfig(next);
+      continue;
+    }
+    if (choice === 5) {
+      next = applyRuntimeSettings({ ...next, topList: await chooseTopList(next.topList) });
+      saveConfig(next);
+      continue;
+    }
+    if (choice === 6) {
+      next = applyRuntimeSettings({ ...next, topSort: await chooseTopSort(next.topSort, next.topList) });
+      saveConfig(next);
+      continue;
+    }
+    if (choice === 7) {
       next = applyRuntimeSettings({ ...next, largeSummary: await chooseLargeSummary(next.largeSummary) });
       saveConfig(next);
       continue;
@@ -2178,7 +2713,7 @@ async function presentRestoreBackup() {
 }
 
 async function presentDiagnostics(cfg) {
-  const cache = loadCache();
+  const cache = loadCache(cfg);
   const cacheText = cache?.payload?.updatedAt
     ? t("updated", { time: agoText(cache.payload.updatedAt) })
     : t("none");
@@ -2191,6 +2726,10 @@ async function presentDiagnostics(cfg) {
     `${t("scriptWritable")}: ${script ? t("yes") : t("no")}`,
     `${t("backupCount")}: ${listScriptBackups().length}`,
     `${t("days")}: ${cfg.days}`,
+    `${t("monthlyBudget")}: ${cfg.monthlyBudget > 0 ? formatCostShort(cfg.monthlyBudget) : t("disabled")}`,
+    `${t("accentColor")}: ${accentName(cfg.accent)}`,
+    `${t("privacyMode")}: ${cfg.privacyMode ? t("enabled") : t("disabled")}`,
+    `${t("largeView")}: ${largeViewName(cfg.largeView)}`,
     `${t("topList")}: ${topListName(cfg.topList)}`,
     `${t("topSort")}: ${topSortName(cfg.topSort)}`,
     `${t("largeSummary")}: ${largeSummaryName(cfg.largeSummary)}`,
@@ -2254,14 +2793,20 @@ async function main() {
   widgetConfig = widgetConfig ? await completeOobeIfNeeded(widgetConfig) : widgetConfig;
   widgetConfig = widgetConfig ? await maybeAutoUpdate(widgetConfig) : widgetConfig;
   widgetConfig = widgetConfig ? await presentSettingsIfNeeded(widgetConfig) : widgetConfig;
+  ACTIVE_WIDGET_PARAMETER = widgetParameterValue();
+  if (widgetConfig && ACTIVE_WIDGET_PARAMETER) widgetConfig = applyWidgetParameter(widgetConfig, ACTIVE_WIDGET_PARAMETER);
   if (widgetConfig) widgetConfig = applyRuntimeSettings(widgetConfig);
   let payload = {
     configured: Boolean(widgetConfig?.apiKey),
     apiUrl: normalizeApiUrl(widgetConfig?.apiUrl),
     days: clampDays(widgetConfig?.days || CONFIG.days),
+    accent: widgetConfig?.accent || DEFAULT_SETTINGS.accent,
+    privacyMode: Boolean(widgetConfig?.privacyMode),
+    largeView: widgetConfig?.largeView || DEFAULT_SETTINGS.largeView,
     topList: widgetConfig?.topList || DEFAULT_SETTINGS.topList,
     topSort: widgetConfig?.topSort || DEFAULT_SETTINGS.topSort,
     largeSummary: normalizeLargeSummary(widgetConfig?.largeSummary),
+    monthlyBudget: normalizeBudget(widgetConfig?.monthlyBudget),
     updatedAt: Date.now(),
     offline: false,
     summary: null,
@@ -2275,13 +2820,17 @@ async function main() {
       payload = { ...payload, summary, updatedAt: Date.now() };
       saveCache({ request: cacheRequest(widgetConfig), payload });
     } catch (err) {
-      const cached = loadCache();
-      if (cached?.payload?.summary && cacheMatches(cached, widgetConfig)) {
+      const cached = loadCache(widgetConfig);
+      if (cached?.payload?.summary) {
         payload = {
           ...cached.payload,
+          accent: widgetConfig.accent || DEFAULT_SETTINGS.accent,
+          privacyMode: Boolean(widgetConfig.privacyMode),
+          largeView: widgetConfig.largeView || DEFAULT_SETTINGS.largeView,
           topList: widgetConfig.topList || DEFAULT_SETTINGS.topList,
           topSort: widgetConfig.topSort || DEFAULT_SETTINGS.topSort,
           largeSummary: normalizeLargeSummary(widgetConfig.largeSummary),
+          monthlyBudget: normalizeBudget(widgetConfig.monthlyBudget),
           offline: true,
           error: err.message || t("fetchFailed"),
         };

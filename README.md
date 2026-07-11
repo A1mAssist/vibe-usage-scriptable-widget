@@ -1,6 +1,6 @@
 # Vibe Usage iPhone 桌面小组件
 
-当前版本：`0.1.6`
+当前版本：`0.2.0`
 
 这是一个用于在 iPhone 桌面或负一屏查看 Vibe Usage 数据的 Scriptable 小组件。它不解析手机本地日志，也不上传任何用量数据，只使用你的 `vbu_...` API Key 读取 Vibe Usage 的只读接口：
 
@@ -21,16 +21,33 @@ GET https://vibecafe.ai/api/usage?days=7
 - 支持中文、英文、跟随系统语言
 - 支持浅色、深色、跟随系统外观
 - 支持在设置里更换 API Key、调整统计天数、切换大号列表排序
+- 支持大号概览/活跃视图、项目排行和最近 7 天活跃脉冲
+- 支持月度预算预测、隐私模式和四种强调色
+- 支持通过 Widget Parameter 为每个桌面小组件设置独立预设
 - 首次使用时选择自动更新或手动检查更新
 - 更新前自动备份脚本，并可从设置页恢复最近备份
 
 ## 展示
 
-![Medium widget in light mode](docs/showcase-medium-light.png)
+小号、中号和大号，深色模式：
 
-![Medium widget in dark mode](docs/showcase-medium-dark.png)
+![Small, medium, and large widgets in dark mode](docs/showcase-rendered-all-sizes-dark.png)
 
-![Small and large widgets in dark mode](docs/showcase-all-sizes-dark.png)
+小号、中号和大号，浅色模式：
+
+![Small, medium, and large widgets in light mode](docs/showcase-rendered-all-sizes-light.png)
+
+大号概览、预算预测和项目排行：
+
+![Large overview with budget and projects](docs/preview-overview-budget.png)
+
+大号活跃视图和最近 7 天活跃脉冲：
+
+![Large activity view in mint](docs/preview-activity-mint.png)
+
+隐私模式下的小号和中号：
+
+![Small and medium widgets in privacy mode](docs/preview-privacy-sizes.png)
 
 ## 文件说明
 
@@ -90,8 +107,12 @@ cat ~/.vibe-usage/config.json
   "days": 7,
   "language": "auto",
   "theme": "auto",
+  "accent": "blue",
+  "privacyMode": false,
+  "largeView": "overview",
   "topList": "source",
   "topSort": "tokens",
+  "monthlyBudget": 0,
   "updateMode": "manual"
 }
 ```
@@ -107,8 +128,11 @@ cat ~/.vibe-usage/config.json
 大号小组件在概览之外还会展示：
 
 - 缓存占比、日均费用、Token 速率
-- Top Agent 客户端或 Top 模型
-- 每一项的 Token 数和预估费用
+- 当前用量特征，例如缓存主导、深度推理、输出偏高或均衡
+- Top Agent 客户端、Top 模型或 Top 项目
+- 排行条目显示对应的 Token/费用或活跃时长/会话数
+
+大号切换为“活跃”视图后，会展示活跃时长、会话数、连续活跃天数、最近活跃时间、最近 7 天活跃脉冲和项目排行。项目数据来自接口返回的会话记录；没有项目名时会回退到来源排行。
 
 当所选统计窗口没有用量时，小组件会显示空状态提示。把天数设为 `1` 可以查看今天；可设置范围为 `1` 到 `90` 天。
 
@@ -118,18 +142,42 @@ cat ~/.vibe-usage/config.json
 
 设置页包含这些入口：
 
-- 预览：用当前配置预览中号小组件
-- 数据设置：更换 API Key、调整统计天数、清除缓存
-- 显示设置：切换语言、外观、大号列表类型和排序方式
+- 预览：选择小号、中号或大号并使用当前配置预览
+- 数据设置：更换 API Key、调整统计天数、设置月度预算、清除缓存
+- 显示设置：切换语言、外观、强调色、隐私模式、大号视图、列表类型和排序方式
 - 更新设置：检查更新、切换自动/手动更新、恢复脚本备份
 - 诊断信息：查看版本、脚本名、API URL、缓存状态、上次检查更新时间等
 
-大号列表类型有两种：
+大号列表类型有三种：
 
 - Agent 客户端：按 Codex、Claude、Cursor、Gemini 等客户端来源统计
 - 模型：按模型名统计
+- 项目：按会话里的项目名统计
 
-大号列表可以按 Token 或预估费用排序。
+Agent 客户端和模型可以按 Token 或预估费用排序；项目可以按活跃时长或会话数排序。
+
+隐私模式会隐藏精确 Token、费用和项目名，保留组成比例、排行条、活跃时长和预算进度。月度预算显示的是根据当前统计窗口日均费用推算的 30 天预测，不是自然月账单值；预算设为 `0` 即关闭。
+
+## 独立小组件预设
+
+在 iOS 编辑 Scriptable 小组件时，可以在 Parameter 中填写逗号分隔的预设，让每个桌面实例覆盖全局默认设置：
+
+```text
+days=1,list=model,sort=cost,view=overview,theme=dark,accent=mint,privacy=off,budget=30
+```
+
+支持的参数：
+
+- `days=1..90`
+- `list=source|model|project`
+- `sort=tokens|cost|active|sessions`
+- `view=overview|activity`
+- `theme=auto|light|dark`
+- `accent=blue|graphite|mint|coral`
+- `privacy=on|off`
+- `budget=金额`
+
+参数只覆盖当前小组件，不会写回全局设置。点击该小组件的刷新图标时，参数会跟随刷新请求继续生效。
 
 ## 刷新机制
 
@@ -155,7 +203,7 @@ widget.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)
 每次安装新版前，脚本会把当前脚本备份为类似下面的文件：
 
 ```text
-脚本名.backup-v0.1.6-20260705-1810.js
+脚本名.backup-v0.2.0-20260712-1810.js
 ```
 
 如果新版本不符合预期，可以进入“更新设置”里的“恢复备份”恢复最近的脚本备份。恢复也会先备份当前脚本，方便继续回退。
@@ -174,6 +222,8 @@ widget.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)
 ```text
 vibeusage-widget-cache.json
 ```
+
+缓存文件最多保留 8 组不同 API Key、API URL 和统计天数组合，多个桌面小组件不会再互相覆盖离线缓存。
 
 当网络失败、接口临时不可用或 GitHub 检查更新失败时，小组件会优先展示与当前 API Key、API URL、统计天数匹配的缓存数据，并显示离线提示。
 
