@@ -58,8 +58,9 @@ class DrawContext {
 }
 
 class WidgetNode {
-  addStack() { return new WidgetNode(); }
-  addText() { return {}; }
+  constructor(log = []) { this.log = log; }
+  addStack() { return new WidgetNode(this.log); }
+  addText(value) { this.log.push(String(value)); return {}; }
   addImage() { return {}; }
   addSpacer() {}
   layoutHorizontally() {}
@@ -383,8 +384,13 @@ const renderPayload = {
   largeView: "overview",
 };
 assert.doesNotThrow(() => widget.buildLargeWidget(new WidgetNode(), renderPayload));
-assert.doesNotThrow(() => widget.buildLargeWidget(new WidgetNode(), { ...renderPayload, largeView: "activity" }));
+const largeActivityNode = new WidgetNode();
+assert.doesNotThrow(() => widget.buildLargeWidget(largeActivityNode, { ...renderPayload, largeView: "activity" }));
+assert.equal(largeActivityNode.log.includes("Activity Pulse"), true);
 assert.doesNotThrow(() => widget.buildMediumWidget(new WidgetNode(), renderPayload));
+const mediumActivityNode = new WidgetNode();
+assert.doesNotThrow(() => widget.buildMediumWidget(mediumActivityNode, { ...renderPayload, largeView: "activity" }));
+assert.equal(mediumActivityNode.log.includes("Activity Pulse"), false);
 assert.doesNotThrow(() => widget.buildSmallWidget(new WidgetNode(), renderPayload));
 for (const largeView of ["overview", "activity"]) {
   for (const privacyMode of [false, true]) {

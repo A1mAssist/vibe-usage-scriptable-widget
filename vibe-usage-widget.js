@@ -3,7 +3,7 @@
 // `npx @vibe-cafe/vibe-usage summary` and the Vibe Usage desktop app.
 
 const CONFIG = {
-  version: "0.2.0",
+  version: "0.2.1",
   apiUrl: "https://vibecafe.ai",
   days: 7,
   refreshMinutes: 5,
@@ -1756,7 +1756,6 @@ function buildMediumWidget(widget, payload) {
   }
 
   const s = payload.summary;
-  if (payload.largeView === "activity") return buildLargeActivity(widget, payload, s);
   const metricRow = widget.addStack();
   metricRow.layoutHorizontally();
   metricRow.addSpacer();
@@ -1907,6 +1906,7 @@ function buildLargeWidget(widget, payload) {
   }
 
   const s = payload.summary;
+  if (payload.largeView === "activity") return buildLargeActivity(widget, payload, s);
   const metricRow = widget.addStack();
   metricRow.layoutHorizontally();
   metricRow.addSpacer();
